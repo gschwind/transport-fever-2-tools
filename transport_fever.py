@@ -28,7 +28,7 @@ from matplotlib import cm
 from matplotlib.patches import Patch
 import matplotlib.ticker as ticker
 import argparse
-from tf2_load import tf2_loader
+from tf2_load import tf2_loader, tf2_load_multiple_unit
 import os
 from PIL import ImageQt, Image
 from matplotlib.colors import Normalize
@@ -101,7 +101,7 @@ def create_table(loc, parent = None):
         table.setRowHeight(i, 100)
             
         table.setCellWidget(i, 0, cb)
-        tex = os.path.abspath(os.path.join(GAME_PATH, l.mods, "res/textures/ui/models_small", l.file[6:-4]+"@2x.tga"))
+        tex = os.path.abspath(os.path.join(GAME_PATH, l.mods, "res/textures/ui/models_small", l.file[:-4]+"@2x.tga"))
         if tex in textures:
             ret = QLabel()
             table.setCellWidget(i, 1, QtHPack(ret)[0])
@@ -140,6 +140,8 @@ args = parser.parse_args()
 
 GAME_PATH = os.environ["HOME"]+"/.steam/steam/steamapps/common/Transport Fever 2"
 rail_vehicles = tf2_loader(GAME_PATH)
+
+print(tf2_load_multiple_unit(GAME_PATH))
 
 # setup id for each vehicle
 for i, v in enumerate(rail_vehicles, 1):
@@ -189,9 +191,9 @@ def filter_data(year, goods, region):
             continue
 
         if year != 0:
-            if v.year_from > year:
+            if v.year_from >= year+5:
                 continue
-            if v.year_to < year:
+            if v.year_to <= year-5:
                 continue
         
         if v.tractive_effort > 0:
@@ -216,7 +218,7 @@ print(goods_icons)
 
 textures = {}
 for l in rail_vehicles:
-    tex = os.path.abspath(os.path.join(GAME_PATH, l.mods, "res/textures/ui/models_small", l.file[6:-4]+"@2x.tga"))
+    tex = os.path.abspath(os.path.join(GAME_PATH, l.mods, "res/textures/ui/models_small", l.file[:-4]+"@2x.tga"))
     if os.path.exists(tex):
         print("FOUND", tex.encode("utf-8"))
         if tex not in textures:
@@ -380,6 +382,7 @@ def do_plot():
     D *= 1000
     names = []
     stats = []
+    accel = []
     for l in loc:
         for w in wag:
             names.append(l.name+" + "+w.name)
@@ -389,9 +392,16 @@ def do_plot():
             lw_stat = np.full(C.shape, np.inf)
             np.divide(C, T, out=lw_stat, where=T>0.0)
             stats.append(lw_stat)
+            accel.append(A)
     stats = np.stack(stats)
+    accel = np.stack(accel)
+    
+    # ensure good acceleration
+    stats[accel<0.3] = np.inf
+
     xmins = np.argsort(stats, axis=0)
     xvals = np.take_along_axis(stats, xmins, axis=0)
+    xacce = np.take_along_axis(accel, xmins, axis=0)
     names = np.array(names, dtype='O')
 
     print("="*80)
@@ -434,8 +444,8 @@ def do_plot():
         ax.axis('off')
         ax.legend(handles=legend_elements, loc='center')#, bbox_to_anchor=(0.5, 1.05))
 
-        #plt.figure()
-        #plt.imshow(vals, aspect=0.1)
+        plt.figure()
+        plt.imshow(xacce[i,:,:], aspect=0.1)
 
     plt.show()
 

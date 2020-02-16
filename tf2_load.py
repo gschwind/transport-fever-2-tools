@@ -168,8 +168,8 @@ def tf2_loader(GAME_PATH, use_cache = False):
         with zipfile.ZipFile(os.path.join(GAME_PATH,"res","models","models.zip"),"r") as f:
             for i in f.infolist():
                 if MDL_FILES_PATTERN.match(i.filename):
-                    print("Load file", i.filename)
-                    odata[i.filename] = f.read(i).decode("utf-8")
+                    print("Load file", i.filename[6:])
+                    odata[i.filename[6:]] = f.read(i).decode("utf-8")
         xdata["."] = odata
 
 
@@ -185,9 +185,9 @@ def tf2_loader(GAME_PATH, use_cache = False):
                     rel_filename = abs_filename[len(mod_path)+1:]
                     if not MDL_FILES_PATTERN2.match(rel_filename):
                         continue
-                    print("Load file", os.path.join(d, rel_filename[11:]))
+                    print("Load file", os.path.join(d, rel_filename[17:]))
                     with open(abs_filename,"rb") as f:
-                        odata[rel_filename[11:]] = f.read().decode("utf-8")
+                        odata[rel_filename[17:]] = f.read().decode("utf-8")
             xdata[os.path.join(".","mods",d)] = odata
         if use_cache:
             os.makedirs(".cache", 0o700, True)
@@ -251,6 +251,30 @@ def tf2_loader(GAME_PATH, use_cache = False):
                 pass
 
     return rail_vehicles
+
+
+def _tf2_load_multiple_unit_dir(multiple_unit_dir):
+        odata = {}
+        LUA_FILES_PATTERN = re.compile("^.*\.lua$")
+        for root, directories, files in os.walk(multiple_unit_dir):
+            for f in files:
+                if not LUA_FILES_PATTERN.match(f):
+                    continue
+                abs_filename = os.path.join(root, f)
+                rel_filename = abs_filename[len(multiple_unit_dir)+1:]
+                with open(abs_filename,"rb") as f:
+                    odata[rel_filename] = f.read().decode("utf-8")
+        return odata
+
+# Load data relative to multiple units
+def tf2_load_multiple_unit(GAME_PATH):
+        xdata = { }
+        xdata["."] = _tf2_load_multiple_unit_dir(os.path.join(GAME_PATH,"res","config","multiple_unit"))
+        # Loading mods files
+        mods_root_path = os.path.join(GAME_PATH,"mods")
+        for d in os.listdir(mods_root_path):
+            xdata[os.path.join(".","mods",d)] = _tf2_load_multiple_unit_dir(os.path.join(mods_root_path,d,"res","config","multiple_unit"))
+        return xdata
 
 #    for k, x in xdata.items():
 #        print("="*80)
