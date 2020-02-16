@@ -66,7 +66,7 @@ def create_table(loc, parent = None):
     global selected_vehicle
 
     table = QTableWidget(len(loc), 10, parent)
-    table.setStyleSheet("border: 1px black; padding: 2px;")
+    table.setStyleSheet("QTableView::item { border: 1px black; padding: 2px; } QTableView { margin: 2px; }")
     table.setWordWrap(False)
     table.setHorizontalHeaderItem(0, QTableWidgetItem(""))
     table.setHorizontalHeaderItem(1, QTableWidgetItem(""))
@@ -87,7 +87,7 @@ def create_table(loc, parent = None):
         cb = QCheckBox()
         if l.id in selected_vehicle:
             cb.setCheckState(2)
-        def on_change(st):
+        def on_change(st, l=l):
             global selected_region
             if st == 2:
                 print("add", l.name)
@@ -96,6 +96,8 @@ def create_table(loc, parent = None):
                 print("remove", l.name)
                 selected_vehicle.discard(l.id)
         cb.stateChanged.connect(on_change)
+        
+        table.setRowHeight(i, 100)
             
         table.setCellWidget(i, 0, cb)
         tex = os.path.abspath(os.path.join(GAME_PATH, l.mods, "res/textures/ui/models_small", l.file[6:-4]+"@2x.tga"))
@@ -103,8 +105,9 @@ def create_table(loc, parent = None):
             ret = QLabel()
             table.setCellWidget(i, 1, QtHPack(ret)[0])
             pix = QPixmap(textures[tex])
-            #pix.scaled(ret.size(), 1)
+            pix.scaled(ret.size(), 1)
             ret.setPixmap(pix)
+            ret.setStyleSheet("margin: 0px; padding: 0px;")
         else:
             table.setCellWidget(i, 1, QLabel("W" if l.tractive_effort <= 0 else "T"))
         table.setItem(i, 2, QTableWidgetItem(str(l.name)))
@@ -123,7 +126,6 @@ def create_table(loc, parent = None):
             ic, _ = QtHPack(*[create_icon(t) for t in l.type])
             table.setCellWidget(i, 8, ic)
         table.setItem(i, 9, QTableWidgetItem(str(l.file)))
-        table.setRowHeight(i, 150)
 
     return table
 
@@ -275,7 +277,7 @@ def create_checkbox(t):
     c = QCheckBox()
     if t in selected_good:
         c.setCheckState(2)
-    def on_change(st):
+    def on_change(st, t=t):
         global selected_good
         if st == 2:
             print("add", t)
@@ -295,7 +297,7 @@ def create_checkbox(t):
     c = QCheckBox(t)
     if t in selected_region:
         c.setCheckState(2)
-    def on_change(st):
+    def on_change(st, t=t):
         global selected_region
         if st == 2:
             print("add", t)
@@ -314,7 +316,7 @@ def create_checkbox(t):
     c = QCheckBox(t)
     if t in selected_mods:
         c.setCheckState(2)
-    def on_change(st):
+    def on_change(st, t=t):
         global selected_mods
         if st == 2:
             print("add", t)
