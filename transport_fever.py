@@ -45,6 +45,22 @@ from PyQt5.QtWidgets import (
     QLineEdit
 )
 
+from PyQt5.QtGui import (QPixmap)
+
+def QtVPack(*args):
+    container = QWidget()
+    layout = QVBoxLayout(container)
+    for a in args:
+        layout.addWidget(a)
+    return container, layout
+
+def QtHPack(*args):
+    container = QWidget()
+    layout = QHBoxLayout(container)
+    for a in args:
+        layout.addWidget(a)
+    return container, layout
+
 def create_table(loc, parent = None):
     table = QTableWidget(len(loc), 9, parent)
     table.setWordWrap(False)
@@ -58,7 +74,7 @@ def create_table(loc, parent = None):
     table.setHorizontalHeaderItem(7, QTableWidgetItem("Mass (t)"))
     table.setHorizontalHeaderItem(8, QTableWidgetItem("Types"))
 
-    table.setColumnWidth(0,10)
+    table.setColumnWidth(0,20)
     table.setColumnWidth(1,10)
     table.setColumnWidth(2,500)
 
@@ -74,7 +90,16 @@ def create_table(loc, parent = None):
         table.setItem(i, 5, QTableWidgetItem(str(l.capacity/4)))
         table.setItem(i, 6, QTableWidgetItem(str(l.tractive_effort)))
         table.setItem(i, 7, QTableWidgetItem(str(l.weight)))
-        table.setItem(i, 8, QTableWidgetItem(str(l.type)))
+        if len(l.type) == 0:
+            table.setItem(i, 8, QTableWidgetItem(""))
+        else:
+            def create_icon(t):
+                ret = QLabel()
+                ret.setPixmap(goods_icons[t])
+                return ret
+            ic, _ = QtHPack(*[create_icon(t) for t in l.type])
+            table.setCellWidget(i, 8, ic)
+
     return table, lcb
 
 os.environ["LC_MESSAGES"] = "fr"
@@ -84,11 +109,18 @@ parser.add_argument('--year', type=int, default=0)
 parser.add_argument('--goods', type=str, default=None)
 args = parser.parse_args()
 
-GAME_PATH = "../.steam/steam/steamapps/common/Transport Fever 2"
 
+GAME_PATH = os.environ["HOME"]+"/.steam/steam/steamapps/common/Transport Fever 2"
 rail_vehicles = tf2_loader(GAME_PATH)
 
-def filter_data(year, goods):
+all_types = set()
+for v in rail_vehicles:
+    all_types |= v.type
+
+print(all_types)
+
+
+def filter_data(year, goods, region):
     loc = []
     wag = []
     for v in rail_vehicles:
@@ -96,7 +128,10 @@ def filter_data(year, goods):
         #if not re.search(sys.argv[1], v.name):
         #    continue
 
-        if args.year != 0:
+        if v.region not in region:
+            continue
+
+        if year != 0:
             if v.year_from > year:
                 continue
             if v.year_to < year:
@@ -105,9 +140,8 @@ def filter_data(year, goods):
         if v.tractive_effort > 0:
             loc.append(v)
 
-        if goods is not None:
-            if goods not in v.type:
-                continue
+        if len(selected_good & v.type) == 0:
+            continue
         
         if v.tractive_effort <= 0:
             wag.append(v)
@@ -119,31 +153,15 @@ plt.close('all')
 
 app = QApplication([])
 
-window = QMainWindow()
-#window.setWidth(1024)
-#window.setHeight(800)
-xx = QWidget()
-window.setCentralWidget(xx)
-layout = QVBoxLayout(xx)
+goods_icons = {}
+for t in all_types:
+    goods_icons[t] = QPixmap(os.path.join(GAME_PATH, "res/textures/ui/hud", "cargo_%s@2x.tga"%(t.lower())))
 
-topbar = QWidget()
-layout.addWidget(topbar)
-
-layouttopbar = QHBoxLayout(topbar)
+print(goods_icons)
 
 def update_filter():
-    global tablea, tableb, qyear, qgood
-    try:
-        year = int(qyear.text())
-    except:
-        year = 0
-
-    goods = qgood.text()
-    if len(goods) == 0:
-        goods = None
-    if goods == 'None':
-        goods = None
-    loc, wag = filter_data(year, goods)
+    global tablea, tableb, selected_year, selected_good, selected_region
+    loc, wag = filter_data(selected_year, selected_good, selected_region)
     tableaa, lcb = create_table(loc+wag, xx)
     layout.replaceWidget(tablea, tableaa)
     tablea = tableaa
@@ -151,20 +169,78 @@ def update_filter():
     #layout.replaceWidget(tableb, tablebb)
     #tableb = tablebb
 
-qyear = QLineEdit(str(args.year), topbar)
-qyear.returnPressed.connect(update_filter)
-layouttopbar.addWidget(qyear)
+window = QMainWindow()
+#window.setWidth(1024)
+#window.setHeight(800)
+xx = QWidget()
+window.setCentralWidget(xx)
+layout = QVBoxLayout(xx)
 
-qgood = QLineEdit(str(args.goods), topbar)
-qgood.returnPressed.connect(update_filter)
-layouttopbar.addWidget(qgood)
+def update_year(text):
+    global selected_year
+    try:
+        selected_year = int(text)
+        update_filter()
+    except:
+        selected_year = 0
+        pass
+
+qyear = QLineEdit(str(args.year))
+qyear.returnPressed.connect(lambda: update_year(qyear.text()))
 
 qupdate = QPushButton("OK")
-layouttopbar.addWidget(qupdate)
-qupdate.clicked.connect(lambda: app.quit())
 
-loc, wag = filter_data(args.year, args.goods)
-tablea, lcb = create_table(loc+wag, xx)
+selected_region = set(["eu"])
+selected_year = 0
+if args.goods is not None and args.goods in all_types:
+    selected_good = set([args.goods])
+else:
+    selected_good = set()
+
+def create_checkbox(t):
+    l = QLabel()
+    l.setPixmap(goods_icons[t])
+    c = QCheckBox()
+    if t in selected_good:
+        c.setCheckState(2)
+    def on_change(st):
+        global selected_good
+        if st == 2:
+            print("add", t)
+            selected_good.add(t)
+        else:
+            print("remove", t)
+            selected_good.discard(t)
+        update_filter()
+    c.stateChanged.connect(on_change)
+    ret, _ = QtHPack(c, l)
+    return ret
+
+gcb = [create_checkbox(t) for t in goods_icons]
+
+def create_checkbox(t):
+    c = QCheckBox(t)
+    if t in selected_region:
+        c.setCheckState(2)
+    def on_change(st):
+        global selected_region
+        if st == 2:
+            print("add", t)
+            selected_good.add(t)
+        else:
+            print("remove", t)
+            selected_good.discard(t)
+        update_filter()
+    c.stateChanged.connect(on_change)
+    return c
+
+gcb1 = [create_checkbox(t) for t in ["eu", "usa", "asia"]]
+
+topbar, layouttopbar = QtHPack(*[qyear, qupdate] + gcb + gcb1)
+layout.addWidget(topbar)
+
+tablea, lcb = create_table([], xx)
+update_filter()
 layout.addWidget(tablea)
 #tableb, wcb = create_table(wag, xx)
 #layout.addWidget(tableb)
@@ -172,159 +248,10 @@ layout.addWidget(tablea)
 window.show()
 app.exec_()
 
-#loc = {
-#    "PLM 220": {
-#        "Cu": 0,
-#        "Vc": 60, # km/h to conver to m/s
-#        "nd": 75, # t.m.s^{-2}
-#        "M": 57, # Mass in tone
-#        "P": 271971 # Cost in $/year
-#    },
-#    "BR 53 preuss. G3": {
-#        "Cu": 0,
-#        "Vc": 50, # km/h to conver to m/s
-#        "nd": 50, # t.m.s^{-2}
-#        "M": 38, # Mass in tone
-#        "P": 121377 # Cost in $/year
-#    },
-#    "BR 89 preuss. T3": {
-#        "Cu": 0,
-#        "Vc": 40, # km/h to conver to m/s
-#        "nd": 40, # t.m.s^{-2}
-#        "M": 30, # Mass in tone
-#        "P": 131181 # Cost in $/year
-#    },
-#    "A 3/5": {
-#        "Cu": 0,
-#        "Vc": 100, # km/h to conver to m/s
-#        "nd": 115, # t.m.s^{-2}
-#        "M": 107, # Mass in tone
-#        "P": 617347 # Cost in $/year
-#    },
-#    "2-8-2 Mikado": {
-#        "Cu": 0,
-#        "Vc": 80, # km/h to conver to m/s
-#        "nd": 228, # t.m.s^{-2}
-#        "M": 219, # Mass in tone
-#        "P": 713535 # Cost in $/year
-#    },
-#    "MILW-Class EP-2": {
-#        "Cu": 0,
-#        "Vc": 120, # km/h to conver to m/s
-#        "nd": 516, # t.m.s^{-2}
-#        "M": 240, # Mass in tone
-#        "P": 2080376 # Cost in $/year
-#    },
-#    "BR 75.4 bad. VI c": {
-#        "Cu": 0,
-#        "Vc": 90, # km/h to conver to m/s
-#        "nd": 85, # t.m.s^{-2}
-#        "M": 76, # Mass in tone
-#        "P": 355224 # Cost in $/year
-#    },
-#    "Ce 6/8 II Crocodile": {
-#        "Cu": 0,
-#        "Vc": 75, # km/h to conver to m/s
-#        "nd": 150, # t.m.s^{-2}
-#        "M": 128, # Mass in tone
-#        "P": 1000943 # Cost in $/year
-#    },
-#    "Ae 4/7": {
-#        "Cu": 0,
-#        "Vc": 100, # km/h to conver to m/s
-#        "nd": 196, # t.m.s^{-2}
-#        "M": 121, # Mass in tone
-#        "P": 1419898 # Cost in $/year
-#    },
-#    "CLe 2/4 Roter Pfeil": {
-#        "Cu": 20,
-#        "Vc": 125, # km/h to conver to m/s
-#        "nd": 45, # t.m.s^{-2}
-#        "M": 33, # Mass in tone
-#        "P": 451309 # Cost in $/year
-#    }
-#}
-#
-#wag = {
-#    "Wagon convert #0": {
-#        "Cu": 8, # capacity un tone
-#        "Vc": 80, # max speed in km/h
-#        "M": 11, # in tone
-#        "P": 62290, #  Cost in $/year
-#    },
-#    "Wagon convert #1": {
-#        "Cu": 4, # capacity un tone
-#        "Vc": 50, # max speed in km/h
-#        "M": 5, # in tone
-#        "P": 19420, #  Cost in $/year
-#    },
-#    "Wagon a compartiment separer": {
-#        "Cu": 11, # capacity un tone
-#        "Vc": 60, # max speed in km/h
-#        "M": 10, # in tone
-#        "P": 63822, #  Cost in $/year
-#    },
-#    "Wagon a six roues": {
-#        "Cu": 14, # capacity un tone
-#        "Vc": 100, # max speed in km/h
-#        "M": 15, # in tone
-#        "P": 138286, #  Cost in $/year
-#    },
-#    "Voiture de passager pour le sultant": {
-#        "Cu": 20, # capacity un tone
-#        "Vc": 100, # max speed in km/h
-#        "M": 40, # in tone
-#        "P": 197551, #  Cost in $/year
-#    },
-#    "Wagon plat a rancher #0": {
-#        "Cu": 4, # capacity un tone
-#        "Vc": 50, # max speed in km/h
-#        "M": 5, # in tone
-#        "P": 19420, #  Cost in $/year
-#    },
-#    "Wagon plat a rancher #1": {
-#        "Cu": 8, # capacity un tone
-#        "Vc": 80, # max speed in km/h
-#        "M": 10, # in tone
-#        "P": 62290, #  Cost in $/year
-#    },
-#    "Wagon-citern": {
-#        "Cu": 5, # capacity un tone
-#        "Vc": 50, # max speed in km/h
-#        "M": 6, # in tone
-#        "P": 24275, #  Cost in $/year
-#    },
-#    "Wagon-citerne #2": {
-#        "Cu": 12, # capacity un tone
-#        "Vc": 80, # max speed in km/h
-#        "M": 15, # in tone
-#        "P": 93435, #  Cost in $/year
-#    },
-#    "Boite a tonnerre": {
-#        "Cu": 17, # capacity un tone
-#        "Vc": 100, # max speed in km/h
-#        "M": 20, # in tone
-#        "P": 167918, #  Cost in $/year
-#    },
-#    "Wagon-tombereau": {
-#        "Cu": 8, # capacity un tone
-#        "Vc": 80, # max speed in km/h
-#        "M": 10, # in tone
-#        "P": 62290, #  Cost in $/year
-#    },
-#    "BC4": {
-#        "Cu": 20, # capacity un tone
-#        "Vc": 120, # max speed in km/h
-#        "M": 24, # in tone
-#        "P": 241276, #  Cost in $/year
-#    },
-#}
-#    
 def regular_transport_efficentcy(tr, D):
     T = tr.capacity/(2*D/(tr.top_speed*3.6))*12*60
     C = tr.running_cost
     return C/T
-    
     
 SELECT_LOC = ["CLe 2/4 Roter Pfeil","Ae 4/7","A 3/5","BR 75.4 bad. VI c","Ce 6/8 II Crocodile"]
 SELECT_WAG = ["BC4","Wagon a six roues","Boite a tonnerre",]

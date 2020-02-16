@@ -214,6 +214,12 @@ def tf2_loader(GAME_PATH):
 
         if carrier == "RAIL":
             rail_vehicles.append(rail_vehicle(x.metadata))
+            if re.search("\/asia\/", k):
+                rail_vehicles[-1].region = "asia"
+            elif re.search("\/usa\/", k):
+                rail_vehicles[-1].region = "usa"
+            else:
+                rail_vehicles[-1].region = "eu"
         if carrier == "ROAD":
             pass
         if carrier == "TRAM":
