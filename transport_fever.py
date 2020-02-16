@@ -62,6 +62,8 @@ def QtHPack(*args):
     return container, layout
 
 def create_table(loc, parent = None):
+    global selected_vehicle
+
     table = QTableWidget(len(loc), 9, parent)
     table.setWordWrap(False)
     table.setHorizontalHeaderItem(0, QTableWidgetItem(""))
@@ -78,11 +80,21 @@ def create_table(loc, parent = None):
     table.setColumnWidth(1,10)
     table.setColumnWidth(2,500)
 
-    lcb = []
     for i, l in enumerate(loc):
-        lcb.append(QCheckBox(""))
-        lcb[-1].setCheckState(2)
-        table.setCellWidget(i, 0, lcb[-1])
+        cb = QCheckBox()
+        if l.id in selected_vehicle:
+            cb.setCheckState(2)
+        def on_change(st):
+            global selected_region
+            if st == 2:
+                print("add", l.name)
+                selected_vehicle.add(l.id)
+            else:
+                print("remove", l.name)
+                selected_vehicle.discard(l.id)
+        cb.stateChanged.connect(on_change)
+            
+        table.setCellWidget(i, 0, cb)
         table.setItem(i, 1, QTableWidgetItem("W" if l.tractive_effort <= 0 else "T"))
         table.setItem(i, 2, QTableWidgetItem(str(l.name)))
         table.setItem(i, 3, QTableWidgetItem("%.0f"%np.round(l.top_speed*3.6)))
@@ -100,7 +112,7 @@ def create_table(loc, parent = None):
             ic, _ = QtHPack(*[create_icon(t) for t in l.type])
             table.setCellWidget(i, 8, ic)
 
-    return table, lcb
+    return table
 
 os.environ["LC_MESSAGES"] = "fr"
 
@@ -113,6 +125,10 @@ args = parser.parse_args()
 GAME_PATH = os.environ["HOME"]+"/.steam/steam/steamapps/common/Transport Fever 2"
 rail_vehicles = tf2_loader(GAME_PATH)
 
+# setup id for each vehicle
+for i, v in enumerate(rail_vehicles, 1):
+    v.id = i
+
 all_types = set()
 for v in rail_vehicles:
     all_types |= v.type
@@ -121,13 +137,9 @@ print(all_types)
 
 
 def filter_data(year, goods, region):
-    loc = []
-    wag = []
+    vehicles = []
     for v in rail_vehicles:
-        # filter
-        #if not re.search(sys.argv[1], v.name):
-        #    continue
-
+        
         if v.region not in region:
             continue
 
@@ -138,14 +150,17 @@ def filter_data(year, goods, region):
                 continue
         
         if v.tractive_effort > 0:
-            loc.append(v)
+            vehicles.append(v)
+            continue
 
         if len(selected_good & v.type) == 0:
             continue
         
         if v.tractive_effort <= 0:
-            wag.append(v)
-    return loc, wag
+            vehicles.append(v)
+            continue
+
+    return vehicles
 
 
 plt.close('all')
@@ -161,8 +176,8 @@ print(goods_icons)
 
 def update_filter():
     global tablea, tableb, selected_year, selected_good, selected_region
-    loc, wag = filter_data(selected_year, selected_good, selected_region)
-    tableaa, lcb = create_table(loc+wag, xx)
+    lv = filter_data(selected_year, selected_good, selected_region)
+    tableaa = create_table(lv, xx)
     layout.replaceWidget(tablea, tableaa)
     tablea = tableaa
     #tablebb, wcb = create_table(wag, xx)
@@ -190,6 +205,7 @@ qyear.returnPressed.connect(lambda: update_year(qyear.text()))
 
 qupdate = QPushButton("OK")
 
+selected_vehicle = set([v.id for v in rail_vehicles])
 selected_region = set(["eu"])
 selected_year = 0
 if args.goods is not None and args.goods in all_types:
@@ -239,7 +255,7 @@ gcb1 = [create_checkbox(t) for t in ["eu", "usa", "asia"]]
 topbar, layouttopbar = QtHPack(*[qyear, qupdate] + gcb + gcb1)
 layout.addWidget(topbar)
 
-tablea, lcb = create_table([], xx)
+tablea = create_table([], xx)
 update_filter()
 layout.addWidget(tablea)
 #tableb, wcb = create_table(wag, xx)
