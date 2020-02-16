@@ -30,6 +30,7 @@ import matplotlib.ticker as ticker
 import argparse
 from tf2_load import tf2_loader
 import os
+from PIL import ImageQt, Image
 
 from PyQt5.QtWidgets import (
     QWidget,
@@ -45,7 +46,7 @@ from PyQt5.QtWidgets import (
     QLineEdit
 )
 
-from PyQt5.QtGui import (QPixmap)
+from PyQt5.QtGui import (QPixmap, QImage)
 
 def QtVPack(*args):
     container = QWidget()
@@ -65,6 +66,7 @@ def create_table(loc, parent = None):
     global selected_vehicle
 
     table = QTableWidget(len(loc), 10, parent)
+    table.setStyleSheet("border: 1px black; padding: 2px;")
     table.setWordWrap(False)
     table.setHorizontalHeaderItem(0, QTableWidgetItem(""))
     table.setHorizontalHeaderItem(1, QTableWidgetItem(""))
@@ -78,7 +80,7 @@ def create_table(loc, parent = None):
     table.setHorizontalHeaderItem(9, QTableWidgetItem("file"))
 
     table.setColumnWidth(0,20)
-    table.setColumnWidth(1,10)
+    table.setColumnWidth(1,500)
     table.setColumnWidth(2,500)
 
     for i, l in enumerate(loc):
@@ -96,7 +98,15 @@ def create_table(loc, parent = None):
         cb.stateChanged.connect(on_change)
             
         table.setCellWidget(i, 0, cb)
-        table.setItem(i, 1, QTableWidgetItem("W" if l.tractive_effort <= 0 else "T"))
+        tex = os.path.abspath(os.path.join(GAME_PATH, l.mods, "res/textures/ui/models_small", l.file[6:-4]+"@2x.tga"))
+        if tex in textures:
+            ret = QLabel()
+            table.setCellWidget(i, 1, QtHPack(ret)[0])
+            pix = QPixmap(textures[tex])
+            #pix.scaled(ret.size(), 1)
+            ret.setPixmap(pix)
+        else:
+            table.setCellWidget(i, 1, QLabel("W" if l.tractive_effort <= 0 else "T"))
         table.setItem(i, 2, QTableWidgetItem(str(l.name)))
         table.setItem(i, 3, QTableWidgetItem("%.0f"%np.round(l.top_speed*3.6)))
         table.setItem(i, 4, QTableWidgetItem("%.0f"%l.running_cost))
@@ -113,6 +123,7 @@ def create_table(loc, parent = None):
             ic, _ = QtHPack(*[create_icon(t) for t in l.type])
             table.setCellWidget(i, 8, ic)
         table.setItem(i, 9, QTableWidgetItem(str(l.file)))
+        table.setRowHeight(i, 150)
 
     return table
 
@@ -132,16 +143,21 @@ for i, v in enumerate(rail_vehicles, 1):
     v.id = i
 
 all_types = set()
+all_mods = set()
 for v in rail_vehicles:
     all_types |= v.type
+    all_mods.add(v.mods)
 
 print(all_types)
-
+print(all_mods)
 
 def is_filtered(v):
     global selected_year, selected_good, selected_region
 
     if v.region not in selected_region:
+        return True
+    
+    if v.mods not in selected_mods:
         return True
 
     if selected_year != 0:
@@ -193,8 +209,20 @@ app = QApplication([])
 goods_icons = {}
 for t in all_types:
     goods_icons[t] = QPixmap(os.path.join(GAME_PATH, "res/textures/ui/hud", "cargo_%s@2x.tga"%(t.lower())))
-
 print(goods_icons)
+
+textures = {}
+for l in rail_vehicles:
+    tex = os.path.abspath(os.path.join(GAME_PATH, l.mods, "res/textures/ui/models_small", l.file[6:-4]+"@2x.tga"))
+    if os.path.exists(tex):
+        print("FOUND", tex.encode("utf-8"))
+        if tex not in textures:
+            im = Image.open(tex)
+            pix = QImage(im.tobytes(), im.size[0], im.size[1], QImage.Format_ARGB32)
+            textures[tex] = pix
+    else:
+        print("NOT FOUND", tex)
+print(textures)
 
 def update_filter():
     global tablea, tableb, selected_year, selected_good, selected_region
@@ -232,6 +260,7 @@ qyear.returnPressed.connect(lambda: update_year(qyear.text()))
 
 qupdate = QPushButton("OK")
 
+selected_mods = set(["."])
 selected_vehicle = set([v.id for v in rail_vehicles])
 selected_region = set(["eu"])
 selected_year = 0
@@ -280,7 +309,28 @@ def create_checkbox(t):
 
 gcb1 = [create_checkbox(t) for t in ["eu", "usa", "asia"]]
 
+def create_checkbox(t):
+    global selected_mods
+    c = QCheckBox(t)
+    if t in selected_mods:
+        c.setCheckState(2)
+    def on_change(st):
+        global selected_mods
+        if st == 2:
+            print("add", t)
+            selected_mods.add(t)
+        else:
+            print("remove", t)
+            selected_mods.discard(t)
+        update_filter()
+    c.stateChanged.connect(on_change)
+    return c
+
+gcb2 = [create_checkbox(t) for t in all_mods]
+
 topbar, layouttopbar = QtHPack(*[qyear, qupdate] + gcb + gcb1)
+layout.addWidget(topbar)
+topbar, layouttopbar = QtHPack(*gcb2)
 layout.addWidget(topbar)
 
 tablea = create_table(rail_vehicles, xx)
