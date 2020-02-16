@@ -31,6 +31,7 @@ import argparse
 from tf2_load import tf2_loader
 import os
 from PIL import ImageQt, Image
+from matplotlib.colors import Normalize
 
 from PyQt5.QtWidgets import (
     QWidget,
@@ -336,7 +337,7 @@ topbar, layouttopbar = QtHPack(*gcb2)
 layout.addWidget(topbar)
 
 tablea = create_table(rail_vehicles, xx)
-update_filter()
+update_year(args.year)
 layout.addWidget(tablea)
 
 def regular_transport_efficentcy(tr, D):
@@ -355,20 +356,10 @@ def rate(n0, loc, n1, wag, D):
     Vc = min(loc.top_speed, wag.top_speed)/3.6
     a = acceleration(n0, loc, n1, wag)
     da = (Vc*Vc)/(2*a)
-    if D < da: # if the train never reach Vc
-        t = np.sqrt(2*D/a)
-    else:
-        t = D/Vc + Vc/a
+    t = np.where(D < da, np.sqrt(2*D/a), D/Vc + Vc/a)
     T = (n0*loc.capacity+n1*wag.capacity)/(2*t)*12*60 # one game year is 12 mins
     return T
 
-def xplot(loc, wag, D):
-    N = 20
-    n1 = range(0,N)
-    C = [cost(1, loc, n, wag) for n in n1]
-    T = [rate(1, loc, n, wag, D) for n in n1]
-    A = [acceleration(1, loc, n, wag) for n in n1]
-    return n1, C, T, A
 
 def do_plot():
     print('DO PLOT')
@@ -378,7 +369,6 @@ def do_plot():
     lv = filter_data(selected_year, selected_good, selected_region)
     loc = []
     wag = []
-
     for v in lv:
         if v.id in selected_vehicle:
             if v.tractive_effort > 0:
@@ -386,66 +376,38 @@ def do_plot():
             else:
                 wag.append(v)
 
+    D, N = np.mgrid[1:100,0:20]
+    D *= 1000
     names = []
     stats = []
-    accel = []
     for l in loc:
         for w in wag:
-            names.append(l.name+" + "+w.name+" (3000)")
-            n1, C, T, A = xplot(l, w, 3000)
-            C = np.array(C)
-            T = np.array(T)
-            perf = np.empty(C.shape)
-            perf[:] = np.inf
-            np.divide(C, T, out=perf, where=T>0.0)
-            stats.append(perf)
-            accel.append(A)
+            names.append(l.name+" + "+w.name)
+            C = cost(1, l, N, w)
+            T = rate(1, l, N, w, D)
+            A = acceleration(1, l, N, w)
+            lw_stat = np.full(C.shape, np.inf)
+            np.divide(C, T, out=lw_stat, where=T>0.0)
+            stats.append(lw_stat)
+    stats = np.stack(stats)
+    xmins = np.argsort(stats, axis=0)
+    xvals = np.take_along_axis(stats, xmins, axis=0)
+    names = np.array(names, dtype='O')
 
-    stats = np.array(stats)
-    accel = np.array(accel)
-
-    # remove too low acceleration
-    stats[accel<0.3] = np.inf
-
-    print(stats.shape)
-    m = np.argmin(stats, axis=0)
-
-    for i in range(len(m)):
-        print("{}: {} <{}>".format(n1[i], names[m[i]], stats[m[i],i]))
-
-    plt.figure()
-    plt.plot([stats[m[i],i] for i in range(len(m))])
-
-    mins = []
-    xstats = []
-
-    for d in range(1,100):
-        names = []
-        stats = []
-        for l in loc:
-            for w in wag:
-                names.append(l.name+" + "+w.name)
-                n1, C, T, A = xplot(l, w, d*1000)
-                stats.append(np.array(C)/np.array(T))    
-        stats = np.array(stats)
-        xstats.append(stats)
-        m = np.argsort(stats, axis=0)
-        mins.append(m)
-
-    xstats = np.array(xstats)
-    xmins = np.array(mins)
-    print(xmins.shape)
+    print("="*80)
 
     for i in range(1):
-        mins = xmins[:,i,:]
-        umins = np.unique(mins)
+        mins = xmins[i,:,:]
+        vals = xvals[i,:,:]
         
-        print(names)
+        # remap and color
+        umins = np.unique(mins)
+        xnames = names[umins]
+
         mp = np.zeros((np.max(umins)+1), dtype='i4')
         mp[umins] = np.arange(len(umins), dtype='i4')
         mins = mp[mins]
         print(np.unique(mins))
-        xnames = np.array(names, dtype='O')[umins]
         
         #ticklabels = ["{:d} km".format(d) for d in range(1,100,10)]
         
@@ -454,13 +416,12 @@ def do_plot():
         for i, n in enumerate(xnames):
             legend_elements.append(Patch(facecolor=xcm(i),label=n))
         
-        
         fig = plt.figure(dpi=192)
         ax = plt.subplot(121)
         plt.imshow(mins, cmap=xcm, vmax=10, aspect=0.1)
         for a in range(5,mins.shape[0],10):
             for b in range(1, mins.shape[1], 2):
-                plt.text(b,a,"%2.0f"%(xstats[a, mins[a,b], b]/1000), horizontalalignment='center', verticalalignment='center')
+                plt.text(b,a,"%2.0f"%(vals[a, b]/1000), horizontalalignment='center', verticalalignment='center')
         #ax.set_yticklabels(ticklabels)
         ax.set_xlabel("number of wagon")
         ax.xaxis.set_major_locator(ticker.IndexLocator(1,0.5))
@@ -468,7 +429,13 @@ def do_plot():
         ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, p: "{} km".format(x)))
         ax.yaxis.set_minor_formatter(ticker.FuncFormatter(lambda x, p: "{} km".format(x)))
         ax = plt.subplot(122)
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+        ax.axis('off')
         ax.legend(handles=legend_elements, loc='center')#, bbox_to_anchor=(0.5, 1.05))
+
+        #plt.figure()
+        #plt.imshow(vals, aspect=0.1)
 
     plt.show()
 
