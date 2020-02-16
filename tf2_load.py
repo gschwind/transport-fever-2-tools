@@ -146,53 +146,36 @@ class rail_vehicle():
     def __str__(self):
         return "{0.name} ({0.running_cost:.0f}) {1} km/h {0.weight} t {0.tractive_effort} kN {0.capacity} {0.type}".format(self, math.floor(self.top_speed*3600/1000+0.5))
 
-def tf2_loader(GAME_PATH, use_cache = False):
-    # quick reload of data
-    xdata = None
-    p = ".cache/vehicle.dat"
-    if False:
-        try:
-            with gzip.open(p, "rb") as f:
-                xdata = pickle.load(f)
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except:
-            pass
+def tf2_loader(GAME_PATH):
+    xdata = {}
 
-    if xdata is None:
-        xdata = {}
+    # load base data
+    odata = {}
+    MDL_FILES_PATTERN = re.compile("^model/vehicle/.*\.mdl$")
+    with zipfile.ZipFile(os.path.join(GAME_PATH,"res","models","models.zip"),"r") as f:
+        for i in f.infolist():
+            if MDL_FILES_PATTERN.match(i.filename):
+                print("Load file", i.filename[6:])
+                odata[i.filename[6:]] = f.read(i).decode("utf-8")
+    xdata["."] = odata
 
-        # load base data
+
+    # Loading mods files
+    MDL_FILES_PATTERN2 = re.compile("^res/models/model/vehicle/.*\.mdl$")
+    mods_root_path = os.path.join(GAME_PATH,"mods")
+    for d in os.listdir(mods_root_path):
         odata = {}
-        MDL_FILES_PATTERN = re.compile("^model/vehicle/.*\.mdl$")
-        with zipfile.ZipFile(os.path.join(GAME_PATH,"res","models","models.zip"),"r") as f:
-            for i in f.infolist():
-                if MDL_FILES_PATTERN.match(i.filename):
-                    print("Load file", i.filename[6:])
-                    odata[i.filename[6:]] = f.read(i).decode("utf-8")
-        xdata["."] = odata
-
-
-        # Loading mods files
-        MDL_FILES_PATTERN2 = re.compile("^res/models/model/vehicle/.*\.mdl$")
-        mods_root_path = os.path.join(GAME_PATH,"mods")
-        for d in os.listdir(mods_root_path):
-            odata = {}
-            mod_path = os.path.join(mods_root_path, d)
-            for root, directories, files in os.walk(mod_path):
-                for f in files:
-                    abs_filename = os.path.join(root, f)
-                    rel_filename = abs_filename[len(mod_path)+1:]
-                    if not MDL_FILES_PATTERN2.match(rel_filename):
-                        continue
-                    print("Load file", os.path.join(d, rel_filename[17:]))
-                    with open(abs_filename,"rb") as f:
-                        odata[rel_filename[17:]] = f.read().decode("utf-8")
-            xdata[os.path.join(".","mods",d)] = odata
-        if use_cache:
-            os.makedirs(".cache", 0o700, True)
-            with gzip.open(p, "wb") as f:
-                pickle.dump(xdata, f)
+        mod_path = os.path.join(mods_root_path, d)
+        for root, directories, files in os.walk(mod_path):
+            for f in files:
+                abs_filename = os.path.join(root, f)
+                rel_filename = abs_filename[len(mod_path)+1:]
+                if not MDL_FILES_PATTERN2.match(rel_filename):
+                    continue
+                print("Load file", os.path.join(d, rel_filename[17:]))
+                with open(abs_filename,"rb") as f:
+                    odata[rel_filename[17:]] = f.read().decode("utf-8")
+        xdata[os.path.join(".","mods",d)] = odata
         
     lua = LuaRuntime(unpack_returned_tuples=True)
 
