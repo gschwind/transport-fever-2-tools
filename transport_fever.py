@@ -162,10 +162,6 @@ def filter_data(year, goods, region):
 
     return vehicles
 
-
-plt.close('all')
-
-
 app = QApplication([])
 
 goods_icons = {}
@@ -235,6 +231,7 @@ def create_checkbox(t):
 gcb = [create_checkbox(t) for t in goods_icons]
 
 def create_checkbox(t):
+    global selected_region
     c = QCheckBox(t)
     if t in selected_region:
         c.setCheckState(2)
@@ -242,10 +239,10 @@ def create_checkbox(t):
         global selected_region
         if st == 2:
             print("add", t)
-            selected_good.add(t)
+            selected_region.add(t)
         else:
             print("remove", t)
-            selected_good.discard(t)
+            selected_region.discard(t)
         update_filter()
     c.stateChanged.connect(on_change)
     return c
@@ -258,8 +255,6 @@ layout.addWidget(topbar)
 tablea = create_table([], xx)
 update_filter()
 layout.addWidget(tablea)
-#tableb, wcb = create_table(wag, xx)
-#layout.addWidget(tableb)
 
 window.show()
 app.exec_()
@@ -268,9 +263,19 @@ def regular_transport_efficentcy(tr, D):
     T = tr.capacity/(2*D/(tr.top_speed*3.6))*12*60
     C = tr.running_cost
     return C/T
+
+plt.close('all')
     
-SELECT_LOC = ["CLe 2/4 Roter Pfeil","Ae 4/7","A 3/5","BR 75.4 bad. VI c","Ce 6/8 II Crocodile"]
-SELECT_WAG = ["BC4","Wagon a six roues","Boite a tonnerre",]
+lv = filter_data(selected_year, selected_good, selected_region)
+loc = []
+wag = []
+
+for v in lv:
+    if v.id in selected_vehicle:
+        if v.tractive_effort > 0:
+            loc.append(v)
+        else:
+            wag.append(v)
 
 def cost(n0, loc, n1, wag):
     return n0*loc.running_cost+n1*wag.running_cost
@@ -369,7 +374,6 @@ for i in range(2):
     ax.yaxis.set_minor_formatter(ticker.FuncFormatter(lambda x, p: "{} km".format(x)))
     ax = plt.subplot(122)
     ax.legend(handles=legend_elements, loc='center')#, bbox_to_anchor=(0.5, 1.05))
-
 
 plt.show()
 
