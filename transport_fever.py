@@ -64,7 +64,7 @@ def QtHPack(*args):
 def create_table(loc, parent = None):
     global selected_vehicle
 
-    table = QTableWidget(len(loc), 9, parent)
+    table = QTableWidget(len(loc), 10, parent)
     table.setWordWrap(False)
     table.setHorizontalHeaderItem(0, QTableWidgetItem(""))
     table.setHorizontalHeaderItem(1, QTableWidgetItem(""))
@@ -75,6 +75,7 @@ def create_table(loc, parent = None):
     table.setHorizontalHeaderItem(6, QTableWidgetItem("kN"))
     table.setHorizontalHeaderItem(7, QTableWidgetItem("Mass (t)"))
     table.setHorizontalHeaderItem(8, QTableWidgetItem("Types"))
+    table.setHorizontalHeaderItem(9, QTableWidgetItem("file"))
 
     table.setColumnWidth(0,20)
     table.setColumnWidth(1,10)
@@ -111,6 +112,7 @@ def create_table(loc, parent = None):
                 return ret
             ic, _ = QtHPack(*[create_icon(t) for t in l.type])
             table.setCellWidget(i, 8, ic)
+        table.setItem(i, 9, QTableWidgetItem(str(l.file)))
 
     return table
 
@@ -134,6 +136,30 @@ for v in rail_vehicles:
     all_types |= v.type
 
 print(all_types)
+
+
+def is_filtered(v):
+    global selected_year, selected_good, selected_region
+
+    if v.region not in selected_region:
+        return True
+
+    if selected_year != 0:
+        if v.year_from > selected_year:
+            return True
+        if v.year_to < selected_year:
+            return True
+    
+    if v.tractive_effort > 0:
+        return False
+
+    if len(selected_good & v.type) == 0:
+        return True
+    
+    if v.tractive_effort <= 0:
+        return False
+
+    return True
 
 
 def filter_data(year, goods, region):
@@ -172,13 +198,18 @@ print(goods_icons)
 
 def update_filter():
     global tablea, tableb, selected_year, selected_good, selected_region
-    lv = filter_data(selected_year, selected_good, selected_region)
-    tableaa = create_table(lv, xx)
-    layout.replaceWidget(tablea, tableaa)
-    tablea = tableaa
+    #lv = filter_data(selected_year, selected_good, selected_region)
+    #tableaa = create_table(lv, xx)
+    #layout.replaceWidget(tablea, tableaa)
+    #tablea = tableaa
     #tablebb, wcb = create_table(wag, xx)
     #layout.replaceWidget(tableb, tablebb)
     #tableb = tablebb
+    for i, v in enumerate(rail_vehicles):
+        if is_filtered(v):
+            tablea.hideRow(i)
+        else:
+            tablea.showRow(i)
 
 window = QMainWindow()
 #window.setWidth(1024)
@@ -252,37 +283,25 @@ gcb1 = [create_checkbox(t) for t in ["eu", "usa", "asia"]]
 topbar, layouttopbar = QtHPack(*[qyear, qupdate] + gcb + gcb1)
 layout.addWidget(topbar)
 
-tablea = create_table([], xx)
+tablea = create_table(rail_vehicles, xx)
 update_filter()
 layout.addWidget(tablea)
-
-window.show()
-app.exec_()
 
 def regular_transport_efficentcy(tr, D):
     T = tr.capacity/(2*D/(tr.top_speed*3.6))*12*60
     C = tr.running_cost
     return C/T
 
-plt.close('all')
-    
-lv = filter_data(selected_year, selected_good, selected_region)
-loc = []
-wag = []
-
-for v in lv:
-    if v.id in selected_vehicle:
-        if v.tractive_effort > 0:
-            loc.append(v)
-        else:
-            wag.append(v)
 
 def cost(n0, loc, n1, wag):
     return n0*loc.running_cost+n1*wag.running_cost
 
+def acceleration(n0, loc, n1, wag):
+    return n0*loc.tractive_effort/(n0*loc.weight+n1*wag.weight)
+
 def rate(n0, loc, n1, wag, D):
     Vc = min(loc.top_speed, wag.top_speed)/3.6
-    a = n0*loc.tractive_effort/(n0*loc.weight+n1*wag.weight)
+    a = acceleration(n0, loc, n1, wag)
     da = (Vc*Vc)/(2*a)
     if D < da: # if the train never reach Vc
         t = np.sqrt(2*D/a)
@@ -296,86 +315,114 @@ def xplot(loc, wag, D):
     n1 = range(0,N)
     C = [cost(1, loc, n, wag) for n in n1]
     T = [rate(1, loc, n, wag, D) for n in n1]
-    return n1, C, T
+    A = [acceleration(1, loc, n, wag) for n in n1]
+    return n1, C, T, A
 
-names = []
-stats = []
-for l in loc:
-    for w in wag:
-        names.append(l.name+" + "+w.name+" (3000)")
-        n1, C, T = xplot(l, w, 3000)
-        C = np.array(C)
-        T = np.array(T)
-        perf = np.empty(C.shape)
-        perf[:] = np.inf
-        np.divide(C, T, out=perf, where=T>0.0)
-        stats.append(perf)
+def do_plot():
+    print('DO PLOT')
+    plt.close('all')
 
-stats = np.array(stats)
-print(stats.shape)
-m = np.argmin(stats, axis=0)
+    # Get selected traction and wagon
+    lv = filter_data(selected_year, selected_good, selected_region)
+    loc = []
+    wag = []
 
-for i in range(len(m)):
-    print("{}: {} <{}>".format(n1[i], names[m[i]], stats[m[i],i]))
+    for v in lv:
+        if v.id in selected_vehicle:
+            if v.tractive_effort > 0:
+                loc.append(v)
+            else:
+                wag.append(v)
 
-plt.figure()
-plt.plot([stats[m[i],i] for i in range(len(m))])
-
-mins = []
-xstats = []
-
-for d in range(1,100):
     names = []
     stats = []
+    accel = []
     for l in loc:
         for w in wag:
-            names.append(l.name+" + "+w.name)
-            n1, C, T = xplot(l, w, d*1000)
-            stats.append(np.array(C)/np.array(T))    
+            names.append(l.name+" + "+w.name+" (3000)")
+            n1, C, T, A = xplot(l, w, 3000)
+            C = np.array(C)
+            T = np.array(T)
+            perf = np.empty(C.shape)
+            perf[:] = np.inf
+            np.divide(C, T, out=perf, where=T>0.0)
+            stats.append(perf)
+            accel.append(A)
+
     stats = np.array(stats)
-    xstats.append(stats)
-    m = np.argsort(stats, axis=0)
-    mins.append(m)
+    accel = np.array(accel)
 
-xstats = np.array(xstats)
-xmins = np.array(mins)
-print(xmins.shape)
+    # remove too low acceleration
+    stats[accel<0.3] = np.inf
 
-for i in range(2):
-    mins = xmins[:,i,:]
-    umins = np.unique(mins)
-    
-    print(names)
-    mp = np.zeros((np.max(umins)+1), dtype='i4')
-    mp[umins] = np.arange(len(umins), dtype='i4')
-    mins = mp[mins]
-    print(np.unique(mins))
-    xnames = np.array(names, dtype='O')[umins]
-    
-    #ticklabels = ["{:d} km".format(d) for d in range(1,100,10)]
-    
-    xcm = cm.get_cmap('tab10',10)
-    legend_elements = []
-    for i, n in enumerate(xnames):
-        legend_elements.append(Patch(facecolor=xcm(i),label=n))
-    
-    
-    fig = plt.figure(dpi=192)
-    ax = plt.subplot(121)
-    plt.imshow(mins, cmap=xcm, vmax=10, aspect=0.1)
-    for a in range(5,mins.shape[0],10):
-        for b in range(1, mins.shape[1], 2):
-            plt.text(b,a,"%2.0f"%(xstats[a, mins[a,b], b]/1000), horizontalalignment='center', verticalalignment='center')
-    #ax.set_yticklabels(ticklabels)
-    ax.set_xlabel("number of wagon")
-    ax.xaxis.set_major_locator(ticker.IndexLocator(1,0.5))
-    ax.xaxis.set_minor_locator(ticker.IndexLocator(1,0.5))
-    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, p: "{} km".format(x)))
-    ax.yaxis.set_minor_formatter(ticker.FuncFormatter(lambda x, p: "{} km".format(x)))
-    ax = plt.subplot(122)
-    ax.legend(handles=legend_elements, loc='center')#, bbox_to_anchor=(0.5, 1.05))
+    print(stats.shape)
+    m = np.argmin(stats, axis=0)
 
-plt.show()
+    for i in range(len(m)):
+        print("{}: {} <{}>".format(n1[i], names[m[i]], stats[m[i],i]))
+
+    plt.figure()
+    plt.plot([stats[m[i],i] for i in range(len(m))])
+
+    mins = []
+    xstats = []
+
+    for d in range(1,100):
+        names = []
+        stats = []
+        for l in loc:
+            for w in wag:
+                names.append(l.name+" + "+w.name)
+                n1, C, T, A = xplot(l, w, d*1000)
+                stats.append(np.array(C)/np.array(T))    
+        stats = np.array(stats)
+        xstats.append(stats)
+        m = np.argsort(stats, axis=0)
+        mins.append(m)
+
+    xstats = np.array(xstats)
+    xmins = np.array(mins)
+    print(xmins.shape)
+
+    for i in range(1):
+        mins = xmins[:,i,:]
+        umins = np.unique(mins)
+        
+        print(names)
+        mp = np.zeros((np.max(umins)+1), dtype='i4')
+        mp[umins] = np.arange(len(umins), dtype='i4')
+        mins = mp[mins]
+        print(np.unique(mins))
+        xnames = np.array(names, dtype='O')[umins]
+        
+        #ticklabels = ["{:d} km".format(d) for d in range(1,100,10)]
+        
+        xcm = cm.get_cmap('tab10',10)
+        legend_elements = []
+        for i, n in enumerate(xnames):
+            legend_elements.append(Patch(facecolor=xcm(i),label=n))
+        
+        
+        fig = plt.figure(dpi=192)
+        ax = plt.subplot(121)
+        plt.imshow(mins, cmap=xcm, vmax=10, aspect=0.1)
+        for a in range(5,mins.shape[0],10):
+            for b in range(1, mins.shape[1], 2):
+                plt.text(b,a,"%2.0f"%(xstats[a, mins[a,b], b]/1000), horizontalalignment='center', verticalalignment='center')
+        #ax.set_yticklabels(ticklabels)
+        ax.set_xlabel("number of wagon")
+        ax.xaxis.set_major_locator(ticker.IndexLocator(1,0.5))
+        ax.xaxis.set_minor_locator(ticker.IndexLocator(1,0.5))
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, p: "{} km".format(x)))
+        ax.yaxis.set_minor_formatter(ticker.FuncFormatter(lambda x, p: "{} km".format(x)))
+        ax = plt.subplot(122)
+        ax.legend(handles=legend_elements, loc='center')#, bbox_to_anchor=(0.5, 1.05))
+
+    plt.show()
+
+qupdate.clicked.connect(do_plot)
+window.show()
+app.exec_()
 
 
 

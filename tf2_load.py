@@ -146,15 +146,23 @@ class rail_vehicle():
     def __str__(self):
         return "{0.name} ({0.running_cost:.0f}) {1} km/h {0.weight} t {0.tractive_effort} kN {0.capacity} {0.type}".format(self, math.floor(self.top_speed*3600/1000+0.5))
 
-def tf2_loader(GAME_PATH):
+def tf2_loader(GAME_PATH, use_cache = False):
     # quick reload of data
+    xdata = None
     p = ".cache/vehicle.dat"
-    try:
-        with gzip.open(p, "rb") as f:
-            odata = pickle.load(f)
-    except (KeyboardInterrupt, SystemExit):
-        raise
-    except:
+    if False:
+        try:
+            with gzip.open(p, "rb") as f:
+                xdata = pickle.load(f)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            pass
+
+    if xdata is None:
+        xdata = {}
+
+        # load base data
         odata = {}
         MDL_FILES_PATTERN = re.compile("^model/vehicle/.*\.mdl$")
         with zipfile.ZipFile(os.path.join(GAME_PATH,"res","models","models.zip"),"r") as f:
@@ -162,23 +170,29 @@ def tf2_loader(GAME_PATH):
                 if MDL_FILES_PATTERN.match(i.filename):
                     print("Load file", i.filename)
                     odata[i.filename] = f.read(i).decode("utf-8")
+        xdata["."] = odata
+
 
         # Loading mods files
         MDL_FILES_PATTERN2 = re.compile("^res/models/model/vehicle/.*\.mdl$")
         mods_root_path = os.path.join(GAME_PATH,"mods")
         for d in os.listdir(mods_root_path):
+            odata = {}
             mod_path = os.path.join(mods_root_path, d)
             for root, directories, files in os.walk(mod_path):
                 for f in files:
                     abs_filename = os.path.join(root, f)
-                    if not MDL_FILES_PATTERN2.match(abs_filename[len(mod_path)+1:]):
+                    rel_filename = abs_filename[len(mod_path)+1:]
+                    if not MDL_FILES_PATTERN2.match(rel_filename):
                         continue
-                    print("Load file", os.path.join(d,abs_filename[len(mod_path)+1:]))
+                    print("Load file", os.path.join(d, rel_filename[11:]))
                     with open(abs_filename,"rb") as f:
-                        odata[os.path.join(d,abs_filename[len(mod_path)+1:])] = f.read().decode("utf-8")
-        os.makedirs(".cache", 0o700, True)
-        with gzip.open(p, "wb") as f:
-            pickle.dump(odata, f)
+                        odata[rel_filename[11:]] = f.read().decode("utf-8")
+            xdata[os.path.join(".","mods",d)] = odata
+        if use_cache:
+            os.makedirs(".cache", 0o700, True)
+            with gzip.open(p, "wb") as f:
+                pickle.dump(xdata, f)
         
     lua = LuaRuntime(unpack_returned_tuples=True)
 
@@ -191,43 +205,50 @@ def tf2_loader(GAME_PATH):
 
     # Enable lookup for game includes
     lua.globals().package.path = lua.globals().package.path + ";" + os.path.join(GAME_PATH, "res", "scripts", "?.lua")
+
+    TEXTURE_PATH = os.path.join(GAME_PATH, "res/textures/ui/models_small")
         
-    xdata = {}
-    for k, v in odata.items():
-        try:
-            lua.execute(v)
-            xdata[k] = lua.globals()["data"]()
-        except Exception as e:
-            print(v)
-            print(e)
-
     rail_vehicles = []
-    for k, x in xdata.items():
-        if not lua_has_key(x, "metadata.transportVehicle.carrier"):
-            continue
-        if not lua_has_key(x, "metadata.description.name"):
-            name = k
-        else:
-            name = x.metadata.description.name
+        
+    for k0, v0 in xdata.items():
+        print(k0)
+        tmp_data = {}
+        for k, v in v0.items():
+            try:
+                lua.execute(v)
+                tmp_data[k] = lua.globals()["data"]()
+            except Exception as e:
+                print(v)
+                print(e)
 
-        carrier = str(x.metadata.transportVehicle.carrier)
-
-        if carrier == "RAIL":
-            rail_vehicles.append(rail_vehicle(x.metadata))
-            if re.search("\/asia\/", k):
-                rail_vehicles[-1].region = "asia"
-            elif re.search("\/usa\/", k):
-                rail_vehicles[-1].region = "usa"
+        for k, x in tmp_data.items():
+            if not lua_has_key(x, "metadata.transportVehicle.carrier"):
+                continue
+            if not lua_has_key(x, "metadata.description.name"):
+                name = k
             else:
-                rail_vehicles[-1].region = "eu"
-        if carrier == "ROAD":
-            pass
-        if carrier == "TRAM":
-            pass
-        if carrier == "WATER":
-            pass
-        if carrier == "AIR":
-            pass
+                name = x.metadata.description.name
+
+            carrier = str(x.metadata.transportVehicle.carrier)
+
+            if carrier == "RAIL":
+                rail_vehicles.append(rail_vehicle(x.metadata))
+                rail_vehicles[-1].file = k
+                rail_vehicles[-1].mods = k0
+                if re.search("\/asia\/", k):
+                    rail_vehicles[-1].region = "asia"
+                elif re.search("\/usa\/", k):
+                    rail_vehicles[-1].region = "usa"
+                else:
+                    rail_vehicles[-1].region = "eu"
+            if carrier == "ROAD":
+                pass
+            if carrier == "TRAM":
+                pass
+            if carrier == "WATER":
+                pass
+            if carrier == "AIR":
+                pass
 
     return rail_vehicles
 
