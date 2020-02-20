@@ -75,6 +75,8 @@ def read_engines(x):
         engines.append({"tractive_effort": a.tractiveEffort, "power": a.power, "type": a.type})
     return engines
     
+def read_engine(x):
+    return [{"tractive_effort": x.tractiveEffort, "power": x.power, "type": x.type}]
 
 def print_engines_rail(x):
     if not lua_has_key(x, "metadata.railVehicle.engines"):
@@ -108,6 +110,42 @@ def print_lua(x, s = ""):
     else:
         print(s, x)
 
+class road_vehicle():
+    def __init__(self, metadata):
+        if not lua_has_key(metadata, "description.name"):
+            self.name = "no name"
+        else:
+            self.name = metadata.description.name
+        self.year_from = metadata.availability.yearFrom
+        self.year_to = metadata.availability.yearTo
+        if self.year_to == 0:
+            self.year_to = 2147483647
+        self.lifespan = metadata.maintenance.lifespan
+        self.compartments = read_compartments(metadata.transportVehicle)
+        self.top_speed = metadata.roadVehicle.topSpeed
+        self.weight = metadata.roadVehicle.weight
+        self.engines = read_engine(metadata.roadVehicle.engine)
+        self.tractive_effort = 0
+        self.power = 0
+        for e in self.engines:
+            self.tractive_effort += e['tractive_effort']
+            self.power += e['power']
+        self.capacity = 0
+        self.type = set()
+        if self.compartments is not None:
+            for cp in self.compartments:
+                for ca in cp['loadconfigs'][0]['cargo_entries']:
+                    self.capacity += ca['capacity']
+                for ca in cp['loadconfigs']:
+                    for e in ca['cargo_entries']:
+                        self.type |= set([e['type']])
+        # Guessed from data gathered, speed is converted to km/h
+        self.price = 3600*self.power+150*self.capacity*self.top_speed*3600/1000
+        # Guessed from data
+        self.running_cost = self.price/6
+
+    def __str__(self):
+        return "{0.name} ({0.running_cost:.0f}) {1} km/h {0.weight} t {0.tractive_effort} kN {0.capacity} {0.type}".format(self, math.floor(self.top_speed*3600/1000+0.5))
 
 class rail_vehicle():
     def __init__(self, metadata):
@@ -192,6 +230,7 @@ def tf2_loader(GAME_PATH):
     TEXTURE_PATH = os.path.join(GAME_PATH, "res/textures/ui/models_small")
         
     rail_vehicles = []
+    road_vehicles = []
         
     for k0, v0 in xdata.items():
         print(k0)
@@ -225,6 +264,15 @@ def tf2_loader(GAME_PATH):
                 else:
                     rail_vehicles[-1].region = "eu"
             if carrier == "ROAD":
+                road_vehicles.append(road_vehicle(x.metadata))
+                road_vehicles[-1].file = k
+                road_vehicles[-1].mods = k0
+                if re.search("\/asia\/", k):
+                    road_vehicles[-1].region = "asia"
+                elif re.search("\/usa\/", k):
+                    road_vehicles[-1].region = "usa"
+                else:
+                    road_vehicles[-1].region = "eu"
                 pass
             if carrier == "TRAM":
                 pass
