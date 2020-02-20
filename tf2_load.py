@@ -175,6 +175,41 @@ class road_vehicle():
         # Guessed from data
         self.running_cost = self.price/6
 
+class air_vehicle():
+    def __init__(self, metadata):
+        if not lua_has_key(metadata, "description.name"):
+            self.name = "no name"
+        else:
+            self.name = metadata.description.name
+        self.year_from = metadata.availability.yearFrom
+        self.year_to = metadata.availability.yearTo
+        if self.year_to == 0:
+            self.year_to = 2147483647
+        self.lifespan = metadata.maintenance.lifespan
+        self.compartments = read_compartments(metadata.transportVehicle)
+        self.top_speed = metadata.airVehicle.topSpeed
+        self.weight = metadata.airVehicle.weight
+        self.max_thrust = metadata.airVehicle.maxThrust
+        self.max_take_off_weight = metadata.airVehicle.maxTakeOffWeight
+        self.max_payload = metadata.airVehicle.maxPayload
+        self.time_to_full_thrust = metadata.airVehicle.timeToFullThrust
+        self.xtype = metadata.airVehicle.type # BIG/SMALL
+        self.power = self.max_thrust
+        self.capacity = 0
+        self.type = set()
+        if self.compartments is not None:
+            for cp in self.compartments:
+                for ca in cp['loadconfigs'][0]['cargo_entries']:
+                    self.capacity += ca['capacity']
+                for ca in cp['loadconfigs']:
+                    for e in ca['cargo_entries']:
+                        self.type |= set([e['type']])
+        # Guessed from data gathered, speed is converted to km/h
+        self.price = 3600*self.power+150*self.capacity*self.top_speed*3600/1000
+        # Guessed from data
+        self.running_cost = self.price/6
+
+
 class rail_vehicle():
     def __init__(self, metadata):
         if not lua_has_key(metadata, "description.name"):
@@ -260,6 +295,7 @@ def tf2_loader(GAME_PATH):
     rail_vehicles = []
     road_vehicles = []
     water_vehicles = []
+    air_vehicles = []
         
     for k0, v0 in xdata.items():
         print(k0)
@@ -315,6 +351,15 @@ def tf2_loader(GAME_PATH):
                 else:
                     water_vehicles[-1].region = "eu"
             if carrier == "AIR":
+                air_vehicles.append(air_vehicle(x.metadata))
+                air_vehicles[-1].file = k
+                air_vehicles[-1].mods = k0
+                if re.search("\/asia\/", k):
+                    air_vehicles[-1].region = "asia"
+                elif re.search("\/usa\/", k):
+                    air_vehicles[-1].region = "usa"
+                else:
+                    air_vehicles[-1].region = "eu"
                 pass
 
     return rail_vehicles
