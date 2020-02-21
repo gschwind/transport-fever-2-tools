@@ -30,6 +30,7 @@ import matplotlib.ticker as ticker
 import argparse
 from tf2_load import tf2_loader, tf2_load_multiple_unit
 import os
+
 from PIL import ImageQt, Image
 from matplotlib.colors import Normalize
 
@@ -49,6 +50,8 @@ from PyQt5.QtWidgets import (
 )
 
 from PyQt5.QtGui import (QPixmap, QImage)
+
+
 
 def QtVPack(*args):
     container = QWidget()
@@ -116,14 +119,14 @@ def create_air_table(vehicles, parent = None):
         table.setItem(i, 5, QTableWidgetItem(str(v.capacity/4)))
         table.setItem(i, 6, QTableWidgetItem(str(v.max_thrust)))
         table.setItem(i, 7, QTableWidgetItem(str(v.weight)))
-        if len(v.type) == 0:
+        if len(v.cargo_type) == 0:
             table.setItem(i, 8, QTableWidgetItem(""))
         else:
             def create_icon(t):
                 ret = QLabel()
                 ret.setPixmap(goods_icons[t])
                 return ret
-            ic, _ = QtHPack(*[create_icon(t) for t in v.type])
+            ic, _ = QtHPack(*[create_icon(t) for t in v.cargo_type])
             table.setCellWidget(i, 8, ic)
         table.setItem(i, 9, QTableWidgetItem(str(v.file)))
 
@@ -182,14 +185,14 @@ def create_table(loc, parent = None):
         table.setItem(i, 5, QTableWidgetItem(str(l.capacity/4)))
         table.setItem(i, 6, QTableWidgetItem(str(l.tractive_effort)))
         table.setItem(i, 7, QTableWidgetItem(str(l.weight)))
-        if len(l.type) == 0:
+        if len(l.cargo_type) == 0:
             table.setItem(i, 8, QTableWidgetItem(""))
         else:
             def create_icon(t):
                 ret = QLabel()
                 ret.setPixmap(goods_icons[t])
                 return ret
-            ic, _ = QtHPack(*[create_icon(t) for t in l.type])
+            ic, _ = QtHPack(*[create_icon(t) for t in l.cargo_type])
             table.setCellWidget(i, 8, ic)
         table.setItem(i, 9, QTableWidgetItem(str(l.file)))
 
@@ -218,7 +221,7 @@ for i, v in enumerate(vehicles.air, 1):
 all_types = set()
 all_mods = set()
 for v in vehicles.rail:
-    all_types |= v.type
+    all_types |= v.cargo_type
     all_mods.add(v.mods)
 
 print(all_types)
@@ -242,7 +245,7 @@ def is_filtered(v):
     if v.tractive_effort > 0:
         return False
 
-    if len(selected_good & v.type) == 0:
+    if len(selected_good & v.cargo_type) == 0:
         return True
     
     if v.tractive_effort <= 0:
@@ -268,7 +271,7 @@ def filter_data(year, goods, region):
             vehicles.append(v)
             continue
 
-        if len(selected_good & v.type) == 0:
+        if len(selected_good & v.cargo_type) == 0:
             continue
         
         if v.tractive_effort <= 0:
