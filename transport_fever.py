@@ -50,6 +50,7 @@ from PyQt5.QtWidgets import (
 )
 
 from PyQt5.QtGui import (QPixmap, QImage)
+from PyQt5.QtCore import (QSize)
 
 
 def create_goods_icon(t):
@@ -232,6 +233,74 @@ parser.add_argument('--year', type=int, default=0)
 parser.add_argument('--goods', type=str, default=None)
 args = parser.parse_args()
 
+filters_callback = []
+
+# Build the share vehicle filter
+def create_general_filter():
+    global selected_good
+
+    def apply_filter():
+        global filters_callback
+        for c in filters_callback:
+            c()
+        pass
+
+    container = QWidget()
+    layout = QHBoxLayout(container)
+
+    qyear = QLineEdit(str(args.year))
+    qyear.setMinimumSize(QSize(100,40))
+    
+    def update_year():
+        global selected_year
+
+        try:
+            selected_year = int(qyear.text())
+            apply_filter()    
+        except:
+            selected_year = 0
+            pass
+
+    qyear.returnPressed.connect(update_year)
+    layout.addWidget(qyear)
+
+    for t in all_types:
+        pix = global_get_icons(t)
+        l = QLabel()
+        if pix is not None:
+            l.setPixmap(pix)
+        else:
+            l.setText(t)
+        c = QCheckBox()
+        if t in selected_good:
+            c.setCheckState(2)
+        def on_change(st, t=t):
+            global selected_good
+            if st == 2:
+                selected_good.add(t)
+            else:
+                selected_good.discard(t)
+            apply_filter()
+        c.stateChanged.connect(on_change)
+        ret, _ = QtHPack(c, l)
+        layout.addWidget(ret)
+        
+    for t in ["eu", "usa", "asia"]:
+        global selected_region
+        c = QCheckBox(t)
+        if t in selected_region:
+            c.setCheckState(2)
+        def on_change(st, t=t):
+            global selected_region
+            if st == 2:
+                selected_region.add(t)
+            else:
+                selected_region.discard(t)
+            apply_filter()
+        c.stateChanged.connect(on_change)
+        layout.addWidget(c)
+
+    return container
 
 GAME_PATH = os.environ["HOME"]+"/.steam/steam/steamapps/common/Transport Fever 2"
 vehicles = tf2_loader(GAME_PATH)
@@ -246,39 +315,34 @@ for i, v in enumerate(vehicles.air, 1):
     v.id = i
 
 all_types = set()
-all_mods = set()
 for v in vehicles.rail:
     all_types |= v.cargo_type
-    all_mods.add(v.mod)
+for v in vehicles.air:
+    all_types |= v.cargo_type
+for v in vehicles.water:
+    all_types |= v.cargo_type
+for v in vehicles.road:
+    all_types |= v.cargo_type
 
-print(all_types)
-print(all_mods)
-
-def rail_vehicle_is_filtered(v):
+def general_vehicle_is_filtered(v):
     global selected_year, selected_good, selected_region
 
     if v.region not in selected_region:
         return True
     
-    if v.mod not in selected_mods:
-        return True
-
     if selected_year != 0:
         if v.year_from > selected_year:
             return True
         if v.year_to < selected_year:
             return True
     
-    if v.tractive_effort > 0:
+    if len(v.cargo_type) == 0:
         return False
 
     if len(selected_good & v.cargo_type) == 0:
         return True
-    
-    if v.tractive_effort <= 0:
-        return False
 
-    return True
+    return False
 
 
 app = QApplication([])
@@ -309,19 +373,29 @@ def global_get_icons(cargo_type, _goods_pixmap = {}):
     return _goods_pixmap[cargo_type]
 
 
-def update_filter():
-    global tablea, tableb, selected_year, selected_good, selected_region
-    for i, v in enumerate(vehicles.rail):
-        if rail_vehicle_is_filtered(v):
-            tablea.hideRow(i)
+def filter_table(table, vehicles):
+    global selected_year, selected_good, selected_region
+    for i, v in enumerate(vehicles):
+        if general_vehicle_is_filtered(v):
+            table.hideRow(i)
         else:
-            tablea.showRow(i)
+            table.showRow(i)
+
+selected_region = set(["eu"])
+selected_year = 0
+if args.goods is not None and args.goods in all_types:
+    selected_good = set([args.goods])
+else:
+    selected_good = set()
 
 window = QMainWindow()
 #window.setWidth(1024)
 #window.setHeight(800)
 central_widget = QTabWidget()
-window.setCentralWidget(central_widget)
+qfilter = create_general_filter()
+x, _ = QtVPack(qfilter, central_widget)
+window.setCentralWidget(x)
+
 
 ###############################################################################
 #
@@ -333,100 +407,15 @@ train_main_widget = QWidget()
 layout = QVBoxLayout(train_main_widget)
 central_widget.addTab(train_main_widget, "Train")
 
-def update_year(text):
-    global selected_year
-    try:
-        selected_year = int(text)
-        update_filter()
-    except:
-        selected_year = 0
-        pass
+qupdate = QPushButton("Show Performance")
+layout.addWidget(qupdate)
 
-qyear = QLineEdit(str(args.year))
-qyear.returnPressed.connect(lambda: update_year(qyear.text()))
-
-qupdate = QPushButton("OK")
-
-selected_mods = set(["."])
 selected_rail_vehicle = set([v.fileid for v in vehicles.rail])
-selected_region = set(["eu"])
-selected_year = 0
-if args.goods is not None and args.goods in all_types:
-    selected_good = set([args.goods])
-else:
-    selected_good = set()
 
-def create_checkbox(t):
-    pix = global_get_icons(t)
-    l = QLabel()
-    if pix is not None:
-        l.setPixmap(pix)
-    else:
-        l.setText(t)
-    c = QCheckBox()
-    if t in selected_good:
-        c.setCheckState(2)
-    def on_change(st, t=t):
-        global selected_good
-        if st == 2:
-            print("add", t)
-            selected_good.add(t)
-        else:
-            print("remove", t)
-            selected_good.discard(t)
-        update_filter()
-    c.stateChanged.connect(on_change)
-    ret, _ = QtHPack(c, l)
-    return ret
+rail_vehicles_table = create_rail_table(vehicles.rail)
+layout.addWidget(rail_vehicles_table)
 
-gcb = [create_checkbox(t) for t in all_types]
-
-def create_checkbox(t):
-    global selected_region
-    c = QCheckBox(t)
-    if t in selected_region:
-        c.setCheckState(2)
-    def on_change(st, t=t):
-        global selected_region
-        if st == 2:
-            print("add", t)
-            selected_region.add(t)
-        else:
-            print("remove", t)
-            selected_region.discard(t)
-        update_filter()
-    c.stateChanged.connect(on_change)
-    return c
-
-gcb1 = [create_checkbox(t) for t in ["eu", "usa", "asia"]]
-
-def create_checkbox(t):
-    global selected_mods
-    c = QCheckBox(t)
-    if t in selected_mods:
-        c.setCheckState(2)
-    def on_change(st, t=t):
-        global selected_mods
-        if st == 2:
-            print("add", t)
-            selected_mods.add(t)
-        else:
-            print("remove", t)
-            selected_mods.discard(t)
-        update_filter()
-    c.stateChanged.connect(on_change)
-    return c
-
-gcb2 = [create_checkbox(t) for t in all_mods]
-
-topbar, layouttopbar = QtHPack(*[qyear, qupdate] + gcb + gcb1)
-layout.addWidget(topbar)
-topbar, layouttopbar = QtHPack(*gcb2)
-layout.addWidget(topbar)
-
-tablea = create_rail_table(vehicles.rail)
-update_year(args.year)
-layout.addWidget(tablea)
+filters_callback.append(lambda: filter_table(rail_vehicles_table, vehicles.rail))
 
 ###############################################################################
 #
@@ -442,6 +431,8 @@ selected_air_vehicle = set([v.fileid for v in vehicles.air])
 
 air_vehicles_table = create_air_table(vehicles.air)
 layout.addWidget(air_vehicles_table)
+
+filters_callback.append(lambda: filter_table(air_vehicles_table, vehicles.air))
 
 ###############################################################################
 #
@@ -461,6 +452,8 @@ selected_road_vehicle = set([v.fileid for v in vehicles.road])
 road_vehicles_table = create_road_table(vehicles.road)
 layout.addWidget(road_vehicles_table)
 
+filters_callback.append(lambda: filter_table(road_vehicles_table, vehicles.road))
+
 ###############################################################################
 #
 # WATER SECTION
@@ -475,6 +468,8 @@ selected_water_vehicle = set([v.fileid for v in vehicles.water])
 
 water_vehicles_table = create_water_table(vehicles.water)
 layout.addWidget(water_vehicles_table)
+
+filters_callback.append(lambda: filter_table(water_vehicles_table, vehicles.water))
 
 ###############################################################################
 #
@@ -506,7 +501,8 @@ def do_road_plot():
     plt.close('all')
 
     # Get selected traction and wagon
-    lv = [v for v in vehicles.road if (v.fileid in selected_road_vehicle)]
+    lv = [v for v in vehicles.road if not general_vehicle_is_filtered(v)
+          and (v.fileid in selected_road_vehicle)]
 
     D = np.arange(1,100)*1000
 
@@ -528,7 +524,7 @@ def do_plot():
     plt.close('all')
 
     # Get selected traction and wagon
-    lv = [v for v in vehicles.rail if not rail_vehicle_is_filtered(v)
+    lv = [v for v in vehicles.rail if not general_vehicle_is_filtered(v)
           and (v.fileid in selected_rail_vehicle)]
     print(lv)
 
