@@ -258,7 +258,7 @@ def create_air_table(vehicles, parent = None):
 
     return table
 
-def create_table(loc, parent = None):
+def create_rail_table(loc, parent = None):
     global selected_vehicle
 
     table = QTableWidget(len(loc), 10, parent)
@@ -432,13 +432,6 @@ def global_get_icons(cargo_type, _goods_pixmap = {}):
 
 def update_filter():
     global tablea, tableb, selected_year, selected_good, selected_region
-    #lv = filter_data(selected_year, selected_good, selected_region)
-    #tableaa = create_table(lv, xx)
-    #layout.replaceWidget(tablea, tableaa)
-    #tablea = tableaa
-    #tablebb, wcb = create_table(wag, xx)
-    #layout.replaceWidget(tableb, tablebb)
-    #tableb = tablebb
     for i, v in enumerate(vehicles.rail):
         if is_filtered(v):
             tablea.hideRow(i)
@@ -552,7 +545,7 @@ layout.addWidget(topbar)
 topbar, layouttopbar = QtHPack(*gcb2)
 layout.addWidget(topbar)
 
-tablea = create_table(vehicles.rail, train_main_widget)
+tablea = create_rail_table(vehicles.rail, train_main_widget)
 update_year(args.year)
 layout.addWidget(tablea)
 
