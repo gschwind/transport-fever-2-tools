@@ -250,7 +250,7 @@ for v in vehicles.rail:
 print(all_types)
 print(all_mods)
 
-def is_filtered(v):
+def rail_vehicle_is_filtered(v):
     global selected_year, selected_good, selected_region
 
     if v.region not in selected_region:
@@ -276,32 +276,6 @@ def is_filtered(v):
 
     return True
 
-
-def filter_data(year, goods, region):
-    vehicles = []
-    for v in vehicles.rail:
-        
-        if v.region not in region:
-            continue
-
-        if year != 0:
-            if v.year_from >= year+5:
-                continue
-            if v.year_to <= year-5:
-                continue
-        
-        if v.tractive_effort > 0:
-            vehicles.append(v)
-            continue
-
-        if len(selected_good & v.cargo_type) == 0:
-            continue
-        
-        if v.tractive_effort <= 0:
-            vehicles.append(v)
-            continue
-
-    return vehicles
 
 app = QApplication([])
 
@@ -334,7 +308,7 @@ def global_get_icons(cargo_type, _goods_pixmap = {}):
 def update_filter():
     global tablea, tableb, selected_year, selected_good, selected_region
     for i, v in enumerate(vehicles.rail):
-        if is_filtered(v):
+        if rail_vehicle_is_filtered(v):
             tablea.hideRow(i)
         else:
             tablea.showRow(i)
@@ -527,15 +501,17 @@ def do_plot():
     plt.close('all')
 
     # Get selected traction and wagon
-    lv = filter_data(selected_year, selected_good, selected_region)
+    lv = [v for v in vehicles.rail if not rail_vehicle_is_filtered(v)
+          and (v.fileid in selected_rail_vehicle)]
+    print(lv)
+
     loc = []
     wag = []
     for v in lv:
-        if v.id in selected_rail_vehicle:
-            if v.tractive_effort > 0:
-                loc.append(v)
-            else:
-                wag.append(v)
+        if v.tractive_effort > 0:
+            loc.append(v)
+        else:
+            wag.append(v)
 
     D, N = np.mgrid[1:100,0:20]
     D *= 1000
