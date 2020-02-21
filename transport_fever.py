@@ -75,64 +75,83 @@ def QtHPack(*args):
         layout.addWidget(a)
     return container, layout
 
-def create_water_table(vehicles, parent = None):
-    global selected_water_vehicle
 
-    table = QTableWidget(len(vehicles), 10, parent)
+# @param[in] tpl: list of tuple (title, field)
+def create_table(vehicles, selected_vehicle, tpl):
+
+    table = QTableWidget(len(vehicles), len(tpl))
     table.setStyleSheet("QTableView::item { border: 1px black; padding: 2px; } QTableView { margin: 2px; }")
     table.setWordWrap(False)
-    table.setHorizontalHeaderItem(0, QTableWidgetItem(""))
-    table.setHorizontalHeaderItem(1, QTableWidgetItem("select?"))
-    table.setHorizontalHeaderItem(2, QTableWidgetItem("name"))
-    table.setHorizontalHeaderItem(3, QTableWidgetItem("max speed (km/h)"))
-    table.setHorizontalHeaderItem(4, QTableWidgetItem("yearly cost"))
-    table.setHorizontalHeaderItem(5, QTableWidgetItem("capacity"))
-    table.setHorizontalHeaderItem(6, QTableWidgetItem("kN"))
-    table.setHorizontalHeaderItem(7, QTableWidgetItem("Mass (t)"))
-    table.setHorizontalHeaderItem(8, QTableWidgetItem("Types"))
-    table.setHorizontalHeaderItem(9, QTableWidgetItem("file"))
+
+    for i, (title, field) in enumerate(tpl):
+        table.setHorizontalHeaderItem(i, QTableWidgetItem(title))
+
 
     table.setColumnWidth(0,20)
     table.setColumnWidth(1,500)
     table.setColumnWidth(2,500)
 
-    for i, v in enumerate(vehicles):
-        cb = QCheckBox()
-        if v.fileid in selected_water_vehicle:
-            cb.setCheckState(2)
-        def on_change(st, id = v.fileid):
-            global selected_water_vehicle
-            if st == 2:
-                selected_water_vehicle.add(id)
+    for r, v in enumerate(vehicles):
+        table.setRowHeight(r, 150)
+        # Setup the row
+        for c, (title, field) in enumerate(tpl):
+            # Check for special field
+            if field == "checkbox":
+                # Create the heading checkbox
+                cb = QCheckBox()
+                if v.fileid in selected_water_vehicle:
+                    cb.setCheckState(2)
+                def on_change(st, id = v.fileid):
+                    nonlocal selected_vehicle
+                    if st == 2:
+                        selected_water_vehicle.add(id)
+                    else:
+                        selected_water_vehicle.discard(id)
+                cb.stateChanged.connect(on_change)
+                table.setCellWidget(r, c, cb)
+            elif field == "tex":
+                tex = global_get_texture(v.tex)
+                if tex is not None:
+                    ret = QLabel()
+                    table.setCellWidget(r, c, ret)
+                    pix = QPixmap(tex)
+                    pix.scaled(ret.size(), 1)
+                    ret.setPixmap(pix)
+                    ret.setStyleSheet("margin: 0px; padding: 0px;")
+                else:
+                    table.setCellWidget(r, c, QLabel("Not Found"))
+            elif field == "cargo_type":
+                if len(v.cargo_type) == 0:
+                    table.setItem(r, c, QTableWidgetItem(""))
+                else:
+                    ic, _ = QtHPack(*[create_goods_icon(t) for t in v.cargo_type])
+                    table.setCellWidget(r, c, ic)
             else:
-                selected_water_vehicle.discard(id)
-        cb.stateChanged.connect(on_change)
-        
-        table.setRowHeight(i, 150)
-            
-        table.setCellWidget(i, 0, cb)
-        tex = global_get_texture(v.tex)
-        if tex is not None:
-            ret = QLabel()
-            table.setCellWidget(i, 1, QtHPack(ret)[0])
-            pix = QPixmap(tex)
-            pix.scaled(ret.size(), 1)
-            ret.setPixmap(pix)
-            ret.setStyleSheet("margin: 0px; padding: 0px;")
-        else:
-            table.setCellWidget(i, 1, QLabel("Not Found"))
-        table.setItem(i, 2, QTableWidgetItem(str(v.name)))
-        table.setItem(i, 3, QTableWidgetItem("%.0f"%np.round(v.top_speed*3.6)))
-        table.setItem(i, 4, QTableWidgetItem("%.0f"%v.running_cost))
-        table.setItem(i, 5, QTableWidgetItem(str(v.capacity/4)))
-        table.setItem(i, 6, QTableWidgetItem(str(v.max_rpm)))
-        table.setItem(i, 7, QTableWidgetItem(str(v.weight)))
-        if len(v.cargo_type) == 0:
-            table.setItem(i, 8, QTableWidgetItem(""))
-        else:
-            ic, _ = QtHPack(*[create_goods_icon(t) for t in v.cargo_type])
-            table.setCellWidget(i, 8, ic)
-        table.setItem(i, 9, QTableWidgetItem(str(v.fileid)))
+                table.setItem(r, c, QTableWidgetItem(str(getattr(v, field))))
+            pass # all field
+        pass # all vehicle
+
+    return table
+
+def create_water_table(vehicles):
+    global selected_water_vehicle
+
+    table = create_table(vehicles, selected_water_vehicle, [
+        ("",                  "checkbox"),
+        ("",                  "tex"),
+        ("name",              "name"),
+        ("max speed (km/h)",  "top_speed"),
+        ("yearly cost",       "running_cost"),
+        ("capacity",          "capacity"),
+        ("kN",                "max_rpm"),
+        ("Mass (t)",          "weight"),
+        ("Cargo Type",        "cargo_type"),
+        ("File",              "fileid"),
+    ])
+
+    table.setColumnWidth(0,20)
+    table.setColumnWidth(1,500)
+    table.setColumnWidth(2,500)
 
     return table
 
@@ -591,7 +610,7 @@ central_widget.addTab(water_main_widget, "Water")
 
 selected_water_vehicle = set([v.fileid for v in vehicles.water])
 
-water_vehicles_table = create_water_table(vehicles.water, water_main_widget)
+water_vehicles_table = create_water_table(vehicles.water)
 layout.addWidget(water_vehicles_table)
 
 ###############################################################################
