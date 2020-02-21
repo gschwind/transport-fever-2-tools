@@ -233,7 +233,7 @@ def is_filtered(v):
     if v.region not in selected_region:
         return True
     
-    if v.mods not in selected_mods:
+    if v.mod not in selected_mods:
         return True
 
     if selected_year != 0:
