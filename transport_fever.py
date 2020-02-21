@@ -291,6 +291,7 @@ def global_get_texture(filename, _textures = {}):
         return _textures[filename]
     with Image.open(filename).convert("RGBA") as im:
         pix = QImage(im.tobytes(), im.size[0], im.size[1], QImage.Format_ARGB32)
+        pix = pix.rgbSwapped()
     _textures[filename] = pix
     return pix
 
