@@ -113,13 +113,27 @@ def print_lua(x, s = ""):
 
 
 class transport_vehicle():
-    def __init__(self, metadata):
+    def __init__(self, mod, fileid, metadata):
+        self.fileid = fileid
+        self.mod = mod
+
+        # lookup for region
+        if re.search("\/asia\/", fileid):
+            self.region = "asia"
+        elif re.search("\/usa\/", fileid):
+            self.region = "usa"
+        else:
+            self.region = "eu"
+
+        # Multi-part train does not have name.
         if not lua_has_key(metadata, "description.name"):
             self.name = "Name Not Found"
         else:
             self.name = metadata.description.name
         self.year_from = metadata.availability.yearFrom
         self.year_to = metadata.availability.yearTo
+
+        # if year to is zero set year_to to a big number
         if self.year_to == 0:
             self.year_to = 2147483647
         self.lifespan = metadata.maintenance.lifespan
@@ -136,8 +150,8 @@ class transport_vehicle():
 
 
 class water_vehicle(transport_vehicle):
-    def __init__(self, metadata):
-        super(water_vehicle, self).__init__(metadata)
+    def __init__(self, mod, fileid, metadata):
+        super(water_vehicle, self).__init__(mod, fileid, metadata)
         self.top_speed = metadata.waterVehicle.topSpeed
         self.weight = metadata.waterVehicle.weight
         self.max_rpm = metadata.waterVehicle.maxRpm
@@ -150,8 +164,8 @@ class water_vehicle(transport_vehicle):
 
 
 class road_vehicle(transport_vehicle):
-    def __init__(self, metadata):
-        super(road_vehicle, self).__init__(metadata)
+    def __init__(self, mod, fileid, metadata):
+        super(road_vehicle, self).__init__(mod, fileid, metadata)
         self.top_speed = metadata.roadVehicle.topSpeed
         self.weight = metadata.roadVehicle.weight
         self.engines = read_engine(metadata.roadVehicle.engine)
@@ -167,8 +181,8 @@ class road_vehicle(transport_vehicle):
 
 
 class air_vehicle(transport_vehicle):
-    def __init__(self, metadata):
-        super(air_vehicle, self).__init__(metadata)
+    def __init__(self, mod, fileid, metadata):
+        super(air_vehicle, self).__init__(mod, fileid, metadata)
         self.top_speed = metadata.airVehicle.topSpeed
         self.weight = metadata.airVehicle.weight
         self.max_thrust = metadata.airVehicle.maxThrust
@@ -185,8 +199,8 @@ class air_vehicle(transport_vehicle):
 
 
 class rail_vehicle(transport_vehicle):
-    def __init__(self, metadata):
-        super(rail_vehicle, self).__init__(metadata)
+    def __init__(self, mod, fileid, metadata):
+        super(rail_vehicle, self).__init__(mod, fileid, metadata)
         self.top_speed = metadata.railVehicle.topSpeed
         self.weight = metadata.railVehicle.weight
         self.engines = read_engines(metadata.railVehicle.engines)
@@ -252,8 +266,10 @@ def tf2_loader(GAME_PATH):
     vehicles.water = []
     vehicles.air = []
         
-    for k0, v0 in xdata.items():
-        print(k0)
+    for mod, v0 in xdata.items():
+        print(mod)
+
+        # running LUA to extract data for all vehicle
         tmp_data = {}
         for k, v in v0.items():
             try:
@@ -263,7 +279,7 @@ def tf2_loader(GAME_PATH):
                 print(v)
                 print(e)
 
-        for k, x in tmp_data.items():
+        for fileid, x in tmp_data.items():
             if not lua_has_key(x, "metadata.transportVehicle.carrier"):
                 continue
             if not lua_has_key(x, "metadata.description.name"):
@@ -274,52 +290,15 @@ def tf2_loader(GAME_PATH):
             carrier = str(x.metadata.transportVehicle.carrier)
 
             if carrier == "RAIL":
-                v = rail_vehicle(x.metadata)
-                v.file = k
-                v.mods = k0
-                if re.search("\/asia\/", k):
-                    v.region = "asia"
-                elif re.search("\/usa\/", k):
-                    v.region = "usa"
-                else:
-                    v.region = "eu"
-                vehicles.rail.append(v)
+                vehicles.rail.append(rail_vehicle(mod, fileid, x.metadata))
             if carrier == "ROAD":
-                v = road_vehicle(x.metadata)
-                v.file = k
-                v.mods = k0
-                if re.search("\/asia\/", k):
-                    v.region = "asia"
-                elif re.search("\/usa\/", k):
-                    v.region = "usa"
-                else:
-                    v.region = "eu"
-                vehicles.road.append(v)
+                vehicles.road.append(road_vehicle(mod, fileid, x.metadata))
             if carrier == "TRAM":
                 pass
             if carrier == "WATER":
-                v = water_vehicle(x.metadata)
-                v.file = k
-                v.mods = k0
-                if re.search("\/asia\/", k):
-                    v.region = "asia"
-                elif re.search("\/usa\/", k):
-                    v.region = "usa"
-                else:
-                    v.region = "eu"
-                vehicles.water.append(v)
+                vehicles.water.append(water_vehicle(mod, fileid, x.metadata))
             if carrier == "AIR":
-                v = air_vehicle(x.metadata)
-                v.file = k
-                v.mods = k0
-                if re.search("\/asia\/", k):
-                    v.region = "asia"
-                elif re.search("\/usa\/", k):
-                    v.region = "usa"
-                else:
-                    v.region = "eu"
-                pass
-                vehicles.air.append(v)
+                vehicles.air.append(air_vehicle(mod, fileid, x.metadata))
 
     return vehicles
 
