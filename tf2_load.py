@@ -172,6 +172,10 @@ class water_vehicle(transport_vehicle):
         self.max_rpm = metadata.waterVehicle.maxRpm
         self.avail_power = metadata.waterVehicle.availPower
         self.power = self.avail_power
+       
+        # Guessed
+        self.accel = 0.26
+        
         # Guessed from game data
         self.price = 83*self.capacity*self.top_speed*3600/1000
 
@@ -187,6 +191,9 @@ class road_vehicle(transport_vehicle):
         for e in self.engines:
             self.tractive_effort += e['tractive_effort']
             self.power += e['power']
+        
+        self.accel = self.tractive_effort / self.weight
+        
         # Guessed from data gathered, speed is converted to km/h
         self.price = 76*self.capacity*self.top_speed*3600/1000
 
@@ -202,6 +209,9 @@ class air_vehicle(transport_vehicle):
         self.time_to_full_thrust = metadata.airVehicle.timeToFullThrust
         self.type = metadata.airVehicle.type # BIG/SMALL
         self.power = self.max_thrust
+        
+        self.accel = self.max_thrust / self.weight
+        
         # Guessed from data gathered, speed is converted to km/h
         self.price = 130*self.capacity*self.top_speed*3600/1000
 
@@ -218,6 +228,8 @@ class rail_vehicle(transport_vehicle):
             self.tractive_effort += e['tractive_effort']
             self.power += e['power']
         xspeed = self.top_speed*3.6
+
+        self.accel = self.tractive_effort / self.weight
 
         # plyval are guessed from game data.
         self.price = np.polyval([5,3000,20000], xspeed)*self.power/xspeed+150*self.capacity*xspeed

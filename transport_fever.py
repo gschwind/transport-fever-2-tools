@@ -427,6 +427,16 @@ air_main_widget = QWidget()
 layout = QVBoxLayout(air_main_widget)
 central_widget.addTab(air_main_widget, "Air")
 
+def do_air_plot():
+    # Get selected traction and wagon
+    lv = [v for v in vehicles.air if not general_vehicle_is_filtered(v)
+          and (v.fileid in selected_air_vehicle)]
+    standalone_vehicle_plot(lv)
+
+q_do_air_plot = QPushButton("Show Performance")
+layout.addWidget(q_do_air_plot)
+q_do_air_plot.clicked.connect(do_air_plot)
+
 selected_air_vehicle = set([v.fileid for v in vehicles.air])
 
 air_vehicles_table = create_air_table(vehicles.air)
@@ -444,8 +454,15 @@ road_main_widget = QWidget()
 layout = QVBoxLayout(road_main_widget)
 central_widget.addTab(road_main_widget, "Road")
 
+def do_road_plot():
+    # Get selected traction and wagon
+    lv = [v for v in vehicles.road if not general_vehicle_is_filtered(v)
+          and (v.fileid in selected_road_vehicle)]
+    standalone_vehicle_plot(lv)
+
 q_do_road_plot = QPushButton("Show Performance")
 layout.addWidget(q_do_road_plot)
+q_do_road_plot.clicked.connect(do_road_plot)
 
 selected_road_vehicle = set([v.fileid for v in vehicles.road])
 
@@ -463,6 +480,16 @@ filters_callback.append(lambda: filter_table(road_vehicles_table, vehicles.road)
 water_main_widget = QWidget()
 layout = QVBoxLayout(water_main_widget)
 central_widget.addTab(water_main_widget, "Water")
+
+def do_water_plot():
+    # Get selected traction and wagon
+    lv = [v for v in vehicles.water if not general_vehicle_is_filtered(v)
+          and (v.fileid in selected_water_vehicle)]
+    standalone_vehicle_plot(lv)
+
+q_do_water_plot = QPushButton("Show Performance")
+layout.addWidget(q_do_water_plot)
+q_do_water_plot.clicked.connect(do_water_plot)
 
 selected_water_vehicle = set([v.fileid for v in vehicles.water])
 
@@ -482,7 +509,6 @@ def regular_transport_efficentcy(tr, D):
     C = tr.running_cost
     return C/T
 
-
 def cost(n0, loc, n1, wag):
     return n0*loc.running_cost+n1*wag.running_cost
 
@@ -497,27 +523,36 @@ def rate(n0, loc, n1, wag, D):
     T = (n0*loc.capacity+n1*wag.capacity)/(2*t)*12*60 # one game year is 12 mins
     return T
 
-def do_road_plot():
+# A general fonction for stanalone vehicles
+# note: probably wrong for AIR vehicul, they have a huge takeoff and landing overhead
+# note: water acceleration is unknown
+#
+# Hypothesis:
+#  - Deceleration is infinite
+#  - Make one ride at a time, i.e. goto staion and go back
+def standalone_vehicle_plot(vehicles):
     plt.close('all')
-
-    # Get selected traction and wagon
-    lv = [v for v in vehicles.road if not general_vehicle_is_filtered(v)
-          and (v.fileid in selected_road_vehicle)]
 
     D = np.arange(1,100)*1000
 
     plt.figure()
     plt.title("cost per rate, lower is better")
-    for v in lv:
-        a = v.tractive_effort/v.weight
-        da = v.top_speed**2/a/2
-        rate_cost = np.where(D<da, np.sqrt(2*D/a)*76*v.top_speed,(2*a*76+v.top_speed**2)/(2*a*D+v.top_speed**2))
+    for v in vehicles:
+        speed    = v.top_speed
+        accel    = v.accel
+        cost     = v.price/6
+        capacity = v.capacity
+
+        # Distance to reach max speed
+        da = (speed**2)/accel/2
+        rate_cost = np.where(D<da,
+            np.sqrt(2*D/accel)*cost*v.top_speed/capacity,
+            (2*accel+speed**2)*cost/(2*accel*D+speed**2)/capacity)
         plt.plot(D, rate_cost, label=v.name)
 
     plt.legend()
     plt.show()
 
-q_do_road_plot.clicked.connect(do_road_plot)
 
 def do_plot():
     print('DO PLOT')
