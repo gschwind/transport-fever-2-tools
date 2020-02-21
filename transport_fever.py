@@ -52,6 +52,14 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import (QPixmap, QImage)
 
 
+def create_goods_icon(t):
+    ret = QLabel()
+    pix = global_get_icons(t)
+    if pix is not None:
+        ret.setPixmap(pix)
+    else:
+        ret.setText(t)
+    return ret
 
 def QtVPack(*args):
     container = QWidget()
@@ -103,11 +111,11 @@ def create_air_table(vehicles, parent = None):
         table.setRowHeight(i, 150)
             
         table.setCellWidget(i, 0, cb)
-        tex = os.path.abspath(os.path.join(GAME_PATH, v.mods, "res/textures/ui/models_small", v.file[:-4]+"@2x.tga"))
-        if tex in textures:
+        tex = global_get_texture(v.tex)
+        if tex is not None:
             ret = QLabel()
             table.setCellWidget(i, 1, QtHPack(ret)[0])
-            pix = QPixmap(textures[tex])
+            pix = QPixmap(tex)
             pix.scaled(ret.size(), 1)
             ret.setPixmap(pix)
             ret.setStyleSheet("margin: 0px; padding: 0px;")
@@ -122,13 +130,9 @@ def create_air_table(vehicles, parent = None):
         if len(v.cargo_type) == 0:
             table.setItem(i, 8, QTableWidgetItem(""))
         else:
-            def create_icon(t):
-                ret = QLabel()
-                ret.setPixmap(goods_icons[t])
-                return ret
-            ic, _ = QtHPack(*[create_icon(t) for t in v.cargo_type])
+            ic, _ = QtHPack(*[create_goods_icon(t) for t in v.cargo_type])
             table.setCellWidget(i, 8, ic)
-        table.setItem(i, 9, QTableWidgetItem(str(v.file)))
+        table.setItem(i, 9, QTableWidgetItem(str(v.fileid)))
 
     return table
 
@@ -169,11 +173,11 @@ def create_table(loc, parent = None):
         table.setRowHeight(i, 150)
             
         table.setCellWidget(i, 0, cb)
-        tex = os.path.abspath(os.path.join(GAME_PATH, l.mods, "res/textures/ui/models_small", l.file[:-4]+"@2x.tga"))
-        if tex in textures:
+        tex = global_get_texture(l.tex) 
+        if tex is not None:
             ret = QLabel()
             table.setCellWidget(i, 1, QtHPack(ret)[0])
-            pix = QPixmap(textures[tex])
+            pix = QPixmap(tex)
             pix.scaled(ret.size(), 1)
             ret.setPixmap(pix)
             ret.setStyleSheet("margin: 0px; padding: 0px;")
@@ -188,13 +192,9 @@ def create_table(loc, parent = None):
         if len(l.cargo_type) == 0:
             table.setItem(i, 8, QTableWidgetItem(""))
         else:
-            def create_icon(t):
-                ret = QLabel()
-                ret.setPixmap(goods_icons[t])
-                return ret
-            ic, _ = QtHPack(*[create_icon(t) for t in l.cargo_type])
+            ic, _ = QtHPack(*[create_goods_icon(t) for t in l.cargo_type])
             table.setCellWidget(i, 8, ic)
-        table.setItem(i, 9, QTableWidgetItem(str(l.file)))
+        table.setItem(i, 9, QTableWidgetItem(str(l.fileid)))
 
     return table
 
@@ -222,7 +222,7 @@ all_types = set()
 all_mods = set()
 for v in vehicles.rail:
     all_types |= v.cargo_type
-    all_mods.add(v.mods)
+    all_mods.add(v.mod)
 
 print(all_types)
 print(all_mods)
@@ -282,23 +282,30 @@ def filter_data(year, goods, region):
 
 app = QApplication([])
 
-goods_icons = {}
-for t in all_types:
-    goods_icons[t] = QPixmap(os.path.join(GAME_PATH, "res/textures/ui/hud", "cargo_%s@2x.tga"%(t.lower())))
-print(goods_icons)
+# this fonction ensure a texture cache avoid loading same file twice
+# static _textures
+def global_get_texture(filename, _textures = {}):
+    if filename is None:
+        return None
+    if filename in _textures:
+        return _textures[filename]
+    with Image.open(filename).convert("RGBA") as im:
+        pix = QImage(im.tobytes(), im.size[0], im.size[1], QImage.Format_ARGB32)
+    _textures[filename] = pix
+    return pix
 
-textures = {}
-for l in vehicles.rail:
-    tex = os.path.abspath(os.path.join(GAME_PATH, l.mods, "res/textures/ui/models_small", l.file[:-4]+"@2x.tga"))
+# static _goods_pixmap
+def global_get_icons(cargo_type, _goods_pixmap = {}):
+    if cargo_type in _goods_pixmap:
+        return _goods_pixmap[cargo_type]
+    tex = os.path.join(GAME_PATH, "res/textures/ui/hud", "cargo_%s@2x.tga"%(cargo_type.lower()))
     if os.path.exists(tex):
-        print("FOUND", tex.encode("utf-8"))
-        if tex not in textures:
-            im = Image.open(tex)
-            pix = QImage(im.tobytes(), im.size[0], im.size[1], QImage.Format_ARGB32)
-            textures[tex] = pix
+        pix = global_get_texture(tex)
+        _goods_pixmap[cargo_type] = QPixmap(pix)
     else:
-        print("NOT FOUND", tex)
-print(textures)
+        _goods_pixmap[cargo_type] = None
+    return _goods_pixmap[cargo_type]
+
 
 def update_filter():
     global tablea, tableb, selected_year, selected_good, selected_region
@@ -355,8 +362,12 @@ else:
     selected_good = set()
 
 def create_checkbox(t):
+    pix = global_get_icons(t)
     l = QLabel()
-    l.setPixmap(goods_icons[t])
+    if pix is not None:
+        l.setPixmap(pix)
+    else:
+        l.setText(t)
     c = QCheckBox()
     if t in selected_good:
         c.setCheckState(2)
@@ -373,7 +384,7 @@ def create_checkbox(t):
     ret, _ = QtHPack(c, l)
     return ret
 
-gcb = [create_checkbox(t) for t in goods_icons]
+gcb = [create_checkbox(t) for t in all_types]
 
 def create_checkbox(t):
     global selected_region
