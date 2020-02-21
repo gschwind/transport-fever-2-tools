@@ -111,10 +111,11 @@ def print_lua(x, s = ""):
     else:
         print(s, x)
 
-class water_vehicle():
+
+class transport_vehicle():
     def __init__(self, metadata):
         if not lua_has_key(metadata, "description.name"):
-            self.name = "no name"
+            self.name = "Name Not Found"
         else:
             self.name = metadata.description.name
         self.year_from = metadata.availability.yearFrom
@@ -123,37 +124,34 @@ class water_vehicle():
             self.year_to = 2147483647
         self.lifespan = metadata.maintenance.lifespan
         self.compartments = read_compartments(metadata.transportVehicle)
-        self.top_speed = metadata.waterVehicle.topSpeed
-        self.weight = metadata.waterVehicle.weight
-        self.max_rpm = metadata.waterVehicle.maxRpm
-        self.avail_power = metadata.waterVehicle.availPower
-        self.power = self.avail_power
         self.capacity = 0
-        self.type = set()
+        self.cargo_type = set()
         if self.compartments is not None:
             for cp in self.compartments:
                 for ca in cp['loadconfigs'][0]['cargo_entries']:
                     self.capacity += ca['capacity']
                 for ca in cp['loadconfigs']:
                     for e in ca['cargo_entries']:
-                        self.type |= set([e['type']])
+                        self.cargo_type.add(e['type'])
+
+
+class water_vehicle(transport_vehicle):
+    def __init__(self, metadata):
+        super(water_vehicle, self).__init__(metadata)
+        self.top_speed = metadata.waterVehicle.topSpeed
+        self.weight = metadata.waterVehicle.weight
+        self.max_rpm = metadata.waterVehicle.maxRpm
+        self.avail_power = metadata.waterVehicle.availPower
+        self.power = self.avail_power
         # Guessed from data gathered, speed is converted to km/h
         self.price = 3600*self.power+150*self.capacity*self.top_speed*3600/1000
         # Guessed from data
         self.running_cost = self.price/6
 
-class road_vehicle():
+
+class road_vehicle(transport_vehicle):
     def __init__(self, metadata):
-        if not lua_has_key(metadata, "description.name"):
-            self.name = "no name"
-        else:
-            self.name = metadata.description.name
-        self.year_from = metadata.availability.yearFrom
-        self.year_to = metadata.availability.yearTo
-        if self.year_to == 0:
-            self.year_to = 2147483647
-        self.lifespan = metadata.maintenance.lifespan
-        self.compartments = read_compartments(metadata.transportVehicle)
+        super(road_vehicle, self).__init__(metadata)
         self.top_speed = metadata.roadVehicle.topSpeed
         self.weight = metadata.roadVehicle.weight
         self.engines = read_engine(metadata.roadVehicle.engine)
@@ -162,67 +160,33 @@ class road_vehicle():
         for e in self.engines:
             self.tractive_effort += e['tractive_effort']
             self.power += e['power']
-        self.capacity = 0
-        self.type = set()
-        if self.compartments is not None:
-            for cp in self.compartments:
-                for ca in cp['loadconfigs'][0]['cargo_entries']:
-                    self.capacity += ca['capacity']
-                for ca in cp['loadconfigs']:
-                    for e in ca['cargo_entries']:
-                        self.type |= set([e['type']])
         # Guessed from data gathered, speed is converted to km/h
         self.price = 3600*self.power+150*self.capacity*self.top_speed*3600/1000
         # Guessed from data
         self.running_cost = self.price/6
 
-class air_vehicle():
+
+class air_vehicle(transport_vehicle):
     def __init__(self, metadata):
-        if not lua_has_key(metadata, "description.name"):
-            self.name = "no name"
-        else:
-            self.name = metadata.description.name
-        self.year_from = metadata.availability.yearFrom
-        self.year_to = metadata.availability.yearTo
-        if self.year_to == 0:
-            self.year_to = 2147483647
-        self.lifespan = metadata.maintenance.lifespan
-        self.compartments = read_compartments(metadata.transportVehicle)
+        super(air_vehicle, self).__init__(metadata)
         self.top_speed = metadata.airVehicle.topSpeed
         self.weight = metadata.airVehicle.weight
         self.max_thrust = metadata.airVehicle.maxThrust
         self.max_take_off_weight = metadata.airVehicle.maxTakeOffWeight
         self.max_payload = metadata.airVehicle.maxPayload
         self.time_to_full_thrust = metadata.airVehicle.timeToFullThrust
-        self.xtype = metadata.airVehicle.type # BIG/SMALL
+        self.type = metadata.airVehicle.type # BIG/SMALL
         self.power = self.max_thrust
         self.capacity = 0
-        self.type = set()
-        if self.compartments is not None:
-            for cp in self.compartments:
-                for ca in cp['loadconfigs'][0]['cargo_entries']:
-                    self.capacity += ca['capacity']
-                for ca in cp['loadconfigs']:
-                    for e in ca['cargo_entries']:
-                        self.type |= set([e['type']])
         # Guessed from data gathered, speed is converted to km/h
         self.price = 3600*self.power+150*self.capacity*self.top_speed*3600/1000
         # Guessed from data
         self.running_cost = self.price/6
 
 
-class rail_vehicle():
+class rail_vehicle(transport_vehicle):
     def __init__(self, metadata):
-        if not lua_has_key(metadata, "description.name"):
-            self.name = "no name"
-        else:
-            self.name = metadata.description.name
-        self.year_from = metadata.availability.yearFrom
-        self.year_to = metadata.availability.yearTo
-        if self.year_to == 0:
-            self.year_to = 2147483647
-        self.lifespan = metadata.maintenance.lifespan
-        self.compartments = read_compartments(metadata.transportVehicle)
+        super(rail_vehicle, self).__init__(metadata)
         self.top_speed = metadata.railVehicle.topSpeed
         self.weight = metadata.railVehicle.weight
         self.engines = read_engines(metadata.railVehicle.engines)
@@ -231,22 +195,11 @@ class rail_vehicle():
         for e in self.engines:
             self.tractive_effort += e['tractive_effort']
             self.power += e['power']
-        self.capacity = 0
-        self.type = set()
-        if self.compartments is not None:
-            for cp in self.compartments:
-                for ca in cp['loadconfigs'][0]['cargo_entries']:
-                    self.capacity += ca['capacity']
-                for ca in cp['loadconfigs']:
-                    for e in ca['cargo_entries']:
-                        self.type |= set([e['type']])
         # Guessed from data gathered, speed is converted to km/h
         self.price = 3600*self.power+150*self.capacity*self.top_speed*3600/1000
         # Guessed from data
         self.running_cost = self.price/6
 
-    def __str__(self):
-        return "{0.name} ({0.running_cost:.0f}) {1} km/h {0.weight} t {0.tractive_effort} kN {0.capacity} {0.type}".format(self, math.floor(self.top_speed*3600/1000+0.5))
 
 def tf2_loader(GAME_PATH):
     xdata = {}
