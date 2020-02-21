@@ -139,17 +139,17 @@ args = parser.parse_args()
 
 
 GAME_PATH = os.environ["HOME"]+"/.steam/steam/steamapps/common/Transport Fever 2"
-rail_vehicles = tf2_loader(GAME_PATH)
+vehicles = tf2_loader(GAME_PATH)
 
 print(tf2_load_multiple_unit(GAME_PATH))
 
 # setup id for each vehicle
-for i, v in enumerate(rail_vehicles, 1):
+for i, v in enumerate(vehicles.rail, 1):
     v.id = i
 
 all_types = set()
 all_mods = set()
-for v in rail_vehicles:
+for v in vehicles.rail:
     all_types |= v.type
     all_mods.add(v.mods)
 
@@ -185,7 +185,7 @@ def is_filtered(v):
 
 def filter_data(year, goods, region):
     vehicles = []
-    for v in rail_vehicles:
+    for v in vehicles.rail:
         
         if v.region not in region:
             continue
@@ -217,7 +217,7 @@ for t in all_types:
 print(goods_icons)
 
 textures = {}
-for l in rail_vehicles:
+for l in vehicles.rail:
     tex = os.path.abspath(os.path.join(GAME_PATH, l.mods, "res/textures/ui/models_small", l.file[:-4]+"@2x.tga"))
     if os.path.exists(tex):
         print("FOUND", tex.encode("utf-8"))
@@ -238,7 +238,7 @@ def update_filter():
     #tablebb, wcb = create_table(wag, xx)
     #layout.replaceWidget(tableb, tablebb)
     #tableb = tablebb
-    for i, v in enumerate(rail_vehicles):
+    for i, v in enumerate(vehicles.rail):
         if is_filtered(v):
             tablea.hideRow(i)
         else:
@@ -266,7 +266,7 @@ qyear.returnPressed.connect(lambda: update_year(qyear.text()))
 qupdate = QPushButton("OK")
 
 selected_mods = set(["."])
-selected_vehicle = set([v.id for v in rail_vehicles])
+selected_vehicle = set([v.id for v in vehicles.rail])
 selected_region = set(["eu"])
 selected_year = 0
 if args.goods is not None and args.goods in all_types:
@@ -338,7 +338,7 @@ layout.addWidget(topbar)
 topbar, layouttopbar = QtHPack(*gcb2)
 layout.addWidget(topbar)
 
-tablea = create_table(rail_vehicles, xx)
+tablea = create_table(vehicles.rail, xx)
 update_year(args.year)
 layout.addWidget(tablea)
 

@@ -28,6 +28,7 @@ import re
 import pickle
 import gzip
 import math
+from types import SimpleNamespace as ns
 
 def lua_has_key(x, k):
     for v in k.split("."):
@@ -291,11 +292,12 @@ def tf2_loader(GAME_PATH):
     lua.globals().package.path = lua.globals().package.path + ";" + os.path.join(GAME_PATH, "res", "scripts", "?.lua")
 
     TEXTURE_PATH = os.path.join(GAME_PATH, "res/textures/ui/models_small")
-        
-    rail_vehicles = []
-    road_vehicles = []
-    water_vehicles = []
-    air_vehicles = []
+    
+    vehicles = ns()
+    vehicles.rail = []
+    vehicles.road = []
+    vehicles.water = []
+    vehicles.air = []
         
     for k0, v0 in xdata.items():
         print(k0)
@@ -319,50 +321,54 @@ def tf2_loader(GAME_PATH):
             carrier = str(x.metadata.transportVehicle.carrier)
 
             if carrier == "RAIL":
-                rail_vehicles.append(rail_vehicle(x.metadata))
-                rail_vehicles[-1].file = k
-                rail_vehicles[-1].mods = k0
+                v = rail_vehicle(x.metadata)
+                v.file = k
+                v.mods = k0
                 if re.search("\/asia\/", k):
-                    rail_vehicles[-1].region = "asia"
+                    v.region = "asia"
                 elif re.search("\/usa\/", k):
-                    rail_vehicles[-1].region = "usa"
+                    v.region = "usa"
                 else:
-                    rail_vehicles[-1].region = "eu"
+                    v.region = "eu"
+                vehicles.rail.append(v)
             if carrier == "ROAD":
-                road_vehicles.append(road_vehicle(x.metadata))
-                road_vehicles[-1].file = k
-                road_vehicles[-1].mods = k0
+                v = road_vehicle(x.metadata)
+                v.file = k
+                v.mods = k0
                 if re.search("\/asia\/", k):
-                    road_vehicles[-1].region = "asia"
+                    v.region = "asia"
                 elif re.search("\/usa\/", k):
-                    road_vehicles[-1].region = "usa"
+                    v.region = "usa"
                 else:
-                    road_vehicles[-1].region = "eu"
+                    v.region = "eu"
+                vehicles.road.append(v)
             if carrier == "TRAM":
                 pass
             if carrier == "WATER":
-                water_vehicles.append(water_vehicle(x.metadata))
-                water_vehicles[-1].file = k
-                water_vehicles[-1].mods = k0
+                v = water_vehicle(x.metadata)
+                v.file = k
+                v.mods = k0
                 if re.search("\/asia\/", k):
-                    water_vehicles[-1].region = "asia"
+                    v.region = "asia"
                 elif re.search("\/usa\/", k):
-                    water_vehicles[-1].region = "usa"
+                    v.region = "usa"
                 else:
-                    water_vehicles[-1].region = "eu"
+                    v.region = "eu"
+                vehicles.water.append(v)
             if carrier == "AIR":
-                air_vehicles.append(air_vehicle(x.metadata))
-                air_vehicles[-1].file = k
-                air_vehicles[-1].mods = k0
+                v = air_vehicle(x.metadata)
+                v.file = k
+                v.mods = k0
                 if re.search("\/asia\/", k):
-                    air_vehicles[-1].region = "asia"
+                    v.region = "asia"
                 elif re.search("\/usa\/", k):
-                    air_vehicles[-1].region = "usa"
+                    v.region = "usa"
                 else:
-                    air_vehicles[-1].region = "eu"
+                    v.region = "eu"
                 pass
+                vehicles.air.append(v)
 
-    return rail_vehicles
+    return vehicles
 
 
 def _tf2_load_multiple_unit_dir(multiple_unit_dir):
