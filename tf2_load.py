@@ -29,6 +29,7 @@ import pickle
 import gzip
 import math
 from types import SimpleNamespace as ns
+import numpy as np
 
 def lua_has_key(x, k):
     for v in k.split("."):
@@ -154,6 +155,14 @@ class transport_vehicle():
                     for e in ca['cargo_entries']:
                         self.cargo_type.add(e['type'])
 
+    def get_xspeed(self):
+        return int(np.round(self.top_speed*3.6))
+    def get_running_cost(self):
+        return int(np.round(self.price/6))
+
+    xspeed = property(get_xspeed)
+    running_cost = property(get_running_cost)
+
 
 class water_vehicle(transport_vehicle):
     def __init__(self, mod, fileid, metadata):
@@ -163,10 +172,9 @@ class water_vehicle(transport_vehicle):
         self.max_rpm = metadata.waterVehicle.maxRpm
         self.avail_power = metadata.waterVehicle.availPower
         self.power = self.avail_power
-        # Guessed from data gathered, speed is converted to km/h
-        self.price = 3600*self.power+150*self.capacity*self.top_speed*3600/1000
-        # Guessed from data
-        self.running_cost = self.price/6
+        xspeed = self.top_speed*3.6
+        # plyval are guessed from game data.
+        self.price = np.polyval([5,3000,20000], xspeed)*self.power/xspeed+150*self.capacity*xspeed
 
 
 class road_vehicle(transport_vehicle):
@@ -181,9 +189,7 @@ class road_vehicle(transport_vehicle):
             self.tractive_effort += e['tractive_effort']
             self.power += e['power']
         # Guessed from data gathered, speed is converted to km/h
-        self.price = 3600*self.power+150*self.capacity*self.top_speed*3600/1000
-        # Guessed from data
-        self.running_cost = self.price/6
+        self.price = 76*self.capacity*self.top_speed*3600/1000
 
 
 class air_vehicle(transport_vehicle):
@@ -199,9 +205,7 @@ class air_vehicle(transport_vehicle):
         self.power = self.max_thrust
         self.capacity = 0
         # Guessed from data gathered, speed is converted to km/h
-        self.price = 3600*self.power+150*self.capacity*self.top_speed*3600/1000
-        # Guessed from data
-        self.running_cost = self.price/6
+        self.price = 3600*self.power+150*self.capacity*self.top_speed*3.6
 
 
 class rail_vehicle(transport_vehicle):
@@ -215,10 +219,10 @@ class rail_vehicle(transport_vehicle):
         for e in self.engines:
             self.tractive_effort += e['tractive_effort']
             self.power += e['power']
-        # Guessed from data gathered, speed is converted to km/h
-        self.price = 3600*self.power+150*self.capacity*self.top_speed*3600/1000
-        # Guessed from data
-        self.running_cost = self.price/6
+        xspeed = self.top_speed*3.6
+
+        # plyval are guessed from game data.
+        self.price = np.polyval([5,3000,20000], xspeed)*self.power/xspeed+150*self.capacity*xspeed
 
 
 def tf2_loader(GAME_PATH):

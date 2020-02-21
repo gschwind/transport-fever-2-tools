@@ -140,11 +140,13 @@ def create_water_table(vehicles):
         ("",                  "checkbox"),
         ("",                  "tex"),
         ("name",              "name"),
-        ("max speed (km/h)",  "top_speed"),
+        ("max speed (km/h)",  "xspeed"),
         ("yearly cost",       "running_cost"),
         ("capacity",          "capacity"),
         ("kN",                "max_rpm"),
         ("Mass (t)",          "weight"),
+        ("max_rpm",           "max_rpm"),
+        ("avail_power",       "avail_power"),
         ("Cargo Type",        "cargo_type"),
         ("File",              "fileid"),
     ])
@@ -162,7 +164,7 @@ def create_road_table(vehicles):
         ("",                  "checkbox"),
         ("",                  "tex"),
         ("name",              "name"),
-        ("max speed (km/h)",  "top_speed"),
+        ("max speed (km/h)",  "xspeed"),
         ("yearly cost",       "running_cost"),
         ("capacity",          "capacity"),
         ("kN",                "tractive_effort"),
@@ -184,11 +186,12 @@ def create_air_table(vehicles):
         ("",                  "checkbox"),
         ("",                  "tex"),
         ("name",              "name"),
-        ("max speed (km/h)",  "top_speed"),
+        ("max speed (km/h)",  "xspeed"),
         ("yearly cost",       "running_cost"),
         ("capacity",          "capacity"),
         ("kN",                "max_thrust"),
         ("Mass (t)",          "weight"),
+        ("max_thrust",        "max_thrust"),
         ("Cargo Type",        "cargo_type"),
         ("File",              "fileid"),
     ])
@@ -206,11 +209,12 @@ def create_rail_table(vehicles):
         ("",                  "checkbox"),
         ("",                  "tex"),
         ("name",              "name"),
-        ("max speed (km/h)",  "top_speed"),
+        ("max speed (km/h)",  "xspeed"),
         ("yearly cost",       "running_cost"),
         ("capacity",          "capacity"),
         ("kN",                "tractive_effort"),
         ("Mass (t)",          "weight"),
+        ("power",             "power"),
         ("Cargo Type",        "cargo_type"),
         ("File",              "fileid"),
     ])
@@ -449,6 +453,9 @@ road_main_widget = QWidget()
 layout = QVBoxLayout(road_main_widget)
 central_widget.addTab(road_main_widget, "Road")
 
+q_do_road_plot = QPushButton("Show Performance")
+layout.addWidget(q_do_road_plot)
+
 selected_road_vehicle = set([v.fileid for v in vehicles.road])
 
 road_vehicles_table = create_road_table(vehicles.road)
@@ -495,6 +502,26 @@ def rate(n0, loc, n1, wag, D):
     T = (n0*loc.capacity+n1*wag.capacity)/(2*t)*12*60 # one game year is 12 mins
     return T
 
+def do_road_plot():
+    plt.close('all')
+
+    # Get selected traction and wagon
+    lv = [v for v in vehicles.road if (v.fileid in selected_road_vehicle)]
+
+    D = np.arange(1,100)*1000
+
+    plt.figure()
+    plt.title("cost per rate, lower is better")
+    for v in lv:
+        a = v.tractive_effort/v.weight
+        da = v.top_speed**2/a/2
+        rate_cost = np.where(D<da, np.sqrt(2*D/a)*76*v.top_speed,(2*a*76+v.top_speed**2)/(2*a*D+v.top_speed**2))
+        plt.plot(D, rate_cost, label=v.name)
+
+    plt.legend()
+    plt.show()
+
+q_do_road_plot.clicked.connect(do_road_plot)
 
 def do_plot():
     print('DO PLOT')
