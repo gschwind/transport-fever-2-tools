@@ -44,6 +44,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
     QPushButton,
+    QTabWidget,
     QLineEdit
 )
 
@@ -62,6 +63,71 @@ def QtHPack(*args):
     for a in args:
         layout.addWidget(a)
     return container, layout
+
+def create_air_table(vehicles, parent = None):
+    global selected_air_vehicle
+
+    table = QTableWidget(len(vehicles), 10, parent)
+    table.setStyleSheet("QTableView::item { border: 1px black; padding: 2px; } QTableView { margin: 2px; }")
+    table.setWordWrap(False)
+    table.setHorizontalHeaderItem(0, QTableWidgetItem(""))
+    table.setHorizontalHeaderItem(1, QTableWidgetItem("select?"))
+    table.setHorizontalHeaderItem(2, QTableWidgetItem("name"))
+    table.setHorizontalHeaderItem(3, QTableWidgetItem("max speed (km/h)"))
+    table.setHorizontalHeaderItem(4, QTableWidgetItem("yearly cost"))
+    table.setHorizontalHeaderItem(5, QTableWidgetItem("capacity"))
+    table.setHorizontalHeaderItem(6, QTableWidgetItem("kN"))
+    table.setHorizontalHeaderItem(7, QTableWidgetItem("Mass (t)"))
+    table.setHorizontalHeaderItem(8, QTableWidgetItem("Types"))
+    table.setHorizontalHeaderItem(9, QTableWidgetItem("file"))
+
+    table.setColumnWidth(0,20)
+    table.setColumnWidth(1,500)
+    table.setColumnWidth(2,500)
+
+    for i, v in enumerate(vehicles):
+        cb = QCheckBox()
+        if v.id in selected_air_vehicle:
+            cb.setCheckState(2)
+        def on_change(st, id = v.id):
+            global selected_air_vehicle
+            if st == 2:
+                selected_air_vehicle.add(id)
+            else:
+                selected_air_vehicle.discard(id)
+        cb.stateChanged.connect(on_change)
+        
+        table.setRowHeight(i, 150)
+            
+        table.setCellWidget(i, 0, cb)
+        tex = os.path.abspath(os.path.join(GAME_PATH, v.mods, "res/textures/ui/models_small", v.file[:-4]+"@2x.tga"))
+        if tex in textures:
+            ret = QLabel()
+            table.setCellWidget(i, 1, QtHPack(ret)[0])
+            pix = QPixmap(textures[tex])
+            pix.scaled(ret.size(), 1)
+            ret.setPixmap(pix)
+            ret.setStyleSheet("margin: 0px; padding: 0px;")
+        else:
+            table.setCellWidget(i, 1, QLabel("Not Found"))
+        table.setItem(i, 2, QTableWidgetItem(str(v.name)))
+        table.setItem(i, 3, QTableWidgetItem("%.0f"%np.round(v.top_speed*3.6)))
+        table.setItem(i, 4, QTableWidgetItem("%.0f"%v.running_cost))
+        table.setItem(i, 5, QTableWidgetItem(str(v.capacity/4)))
+        table.setItem(i, 6, QTableWidgetItem(str(v.max_thrust)))
+        table.setItem(i, 7, QTableWidgetItem(str(v.weight)))
+        if len(v.type) == 0:
+            table.setItem(i, 8, QTableWidgetItem(""))
+        else:
+            def create_icon(t):
+                ret = QLabel()
+                ret.setPixmap(goods_icons[t])
+                return ret
+            ic, _ = QtHPack(*[create_icon(t) for t in v.type])
+            table.setCellWidget(i, 8, ic)
+        table.setItem(i, 9, QTableWidgetItem(str(v.file)))
+
+    return table
 
 def create_table(loc, parent = None):
     global selected_vehicle
@@ -144,6 +210,9 @@ print(tf2_load_multiple_unit(GAME_PATH))
 
 # setup id for each vehicle
 for i, v in enumerate(vehicles.rail, 1):
+    v.id = i
+
+for i, v in enumerate(vehicles.air, 1):
     v.id = i
 
 all_types = set()
@@ -246,9 +315,18 @@ def update_filter():
 window = QMainWindow()
 #window.setWidth(1024)
 #window.setHeight(800)
-xx = QWidget()
-window.setCentralWidget(xx)
-layout = QVBoxLayout(xx)
+central_widget = QTabWidget()
+window.setCentralWidget(central_widget)
+
+###############################################################################
+#
+# TRAIN SECTION
+#
+###############################################################################
+
+train_main_widget = QWidget()
+layout = QVBoxLayout(train_main_widget)
+central_widget.addTab(train_main_widget, "Train")
 
 def update_year(text):
     global selected_year
@@ -337,9 +415,30 @@ layout.addWidget(topbar)
 topbar, layouttopbar = QtHPack(*gcb2)
 layout.addWidget(topbar)
 
-tablea = create_table(vehicles.rail, xx)
+tablea = create_table(vehicles.rail, train_main_widget)
 update_year(args.year)
 layout.addWidget(tablea)
+
+###############################################################################
+#
+# AIR SECTION
+#
+###############################################################################
+
+air_main_widget = QWidget()
+layout = QVBoxLayout(air_main_widget)
+central_widget.addTab(air_main_widget, "Air")
+
+selected_air_vehicle = set([v.id for v in vehicles.air])
+
+air_vehicles_table = create_air_table(vehicles.air, air_main_widget)
+layout.addWidget(air_vehicles_table)
+
+###############################################################################
+#
+# OPTIMIZATION SECTION
+#
+###############################################################################
 
 def regular_transport_efficentcy(tr, D):
     T = tr.capacity/(2*D/(tr.top_speed*3.6))*12*60
