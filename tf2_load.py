@@ -111,6 +111,12 @@ def print_lua(x, s = ""):
     else:
         print(s, x)
 
+def vehicle_texture_lookup(GAME_PATH, v):
+    tex = os.path.abspath(os.path.join(GAME_PATH, v.mod, "res/textures/ui/models_small", v.fileid[:-4]+"@2x.tga"))
+    if os.path.exists(tex):
+        v.tex = tex
+    else:
+        v.tex = None
 
 class transport_vehicle():
     def __init__(self, mod, fileid, metadata):
@@ -291,14 +297,18 @@ def tf2_loader(GAME_PATH):
 
             if carrier == "RAIL":
                 vehicles.rail.append(rail_vehicle(mod, fileid, x.metadata))
+                vehicle_texture_lookup(GAME_PATH, vehicles.rail[-1])
             if carrier == "ROAD":
                 vehicles.road.append(road_vehicle(mod, fileid, x.metadata))
+                vehicle_texture_lookup(GAME_PATH, vehicles.road[-1])
             if carrier == "TRAM":
                 pass
             if carrier == "WATER":
                 vehicles.water.append(water_vehicle(mod, fileid, x.metadata))
+                vehicle_texture_lookup(GAME_PATH, vehicles.water[-1])
             if carrier == "AIR":
                 vehicles.air.append(air_vehicle(mod, fileid, x.metadata))
+                vehicle_texture_lookup(GAME_PATH, vehicles.air[-1])
 
     return vehicles
 
