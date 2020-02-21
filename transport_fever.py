@@ -99,14 +99,14 @@ def create_table(vehicles, selected_vehicle, tpl):
             if field == "checkbox":
                 # Create the heading checkbox
                 cb = QCheckBox()
-                if v.fileid in selected_water_vehicle:
+                if v.fileid in selected_vehicle:
                     cb.setCheckState(2)
                 def on_change(st, id = v.fileid):
                     nonlocal selected_vehicle
                     if st == 2:
-                        selected_water_vehicle.add(id)
+                        selected_vehicle.add(id)
                     else:
-                        selected_water_vehicle.discard(id)
+                        selected_vehicle.discard(id)
                 cb.stateChanged.connect(on_change)
                 table.setCellWidget(r, c, cb)
             elif field == "tex":
