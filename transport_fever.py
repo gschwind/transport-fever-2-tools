@@ -199,65 +199,25 @@ def create_air_table(vehicles):
 
     return table
 
-def create_rail_table(loc, parent = None):
-    global selected_vehicle
+def create_rail_table(vehicles):
+    global selected_rail_vehicle
 
-    table = QTableWidget(len(loc), 10, parent)
-    table.setStyleSheet("QTableView::item { border: 1px black; padding: 2px; } QTableView { margin: 2px; }")
-    table.setWordWrap(False)
-    table.setHorizontalHeaderItem(0, QTableWidgetItem(""))
-    table.setHorizontalHeaderItem(1, QTableWidgetItem(""))
-    table.setHorizontalHeaderItem(2, QTableWidgetItem("name"))
-    table.setHorizontalHeaderItem(3, QTableWidgetItem("max speed (km/h)"))
-    table.setHorizontalHeaderItem(4, QTableWidgetItem("yearly cost"))
-    table.setHorizontalHeaderItem(5, QTableWidgetItem("capacity"))
-    table.setHorizontalHeaderItem(6, QTableWidgetItem("kN"))
-    table.setHorizontalHeaderItem(7, QTableWidgetItem("Mass (t)"))
-    table.setHorizontalHeaderItem(8, QTableWidgetItem("Types"))
-    table.setHorizontalHeaderItem(9, QTableWidgetItem("file"))
+    table = create_table(vehicles, selected_rail_vehicle, [
+        ("",                  "checkbox"),
+        ("",                  "tex"),
+        ("name",              "name"),
+        ("max speed (km/h)",  "top_speed"),
+        ("yearly cost",       "running_cost"),
+        ("capacity",          "capacity"),
+        ("kN",                "tractive_effort"),
+        ("Mass (t)",          "weight"),
+        ("Cargo Type",        "cargo_type"),
+        ("File",              "fileid"),
+    ])
 
     table.setColumnWidth(0,20)
     table.setColumnWidth(1,500)
     table.setColumnWidth(2,500)
-
-    for i, l in enumerate(loc):
-        cb = QCheckBox()
-        if l.id in selected_vehicle:
-            cb.setCheckState(2)
-        def on_change(st, l=l):
-            global selected_vehicle
-            if st == 2:
-                selected_vehicle.add(l.id)
-            else:
-                selected_vehicle.discard(l.id)
-
-        cb.stateChanged.connect(on_change)
-        
-        table.setRowHeight(i, 150)
-            
-        table.setCellWidget(i, 0, cb)
-        tex = global_get_texture(l.tex) 
-        if tex is not None:
-            ret = QLabel()
-            table.setCellWidget(i, 1, QtHPack(ret)[0])
-            pix = QPixmap(tex)
-            pix.scaled(ret.size(), 1)
-            ret.setPixmap(pix)
-            ret.setStyleSheet("margin: 0px; padding: 0px;")
-        else:
-            table.setCellWidget(i, 1, QLabel("W" if l.tractive_effort <= 0 else "T"))
-        table.setItem(i, 2, QTableWidgetItem(str(l.name)))
-        table.setItem(i, 3, QTableWidgetItem("%.0f"%np.round(l.top_speed*3.6)))
-        table.setItem(i, 4, QTableWidgetItem("%.0f"%l.running_cost))
-        table.setItem(i, 5, QTableWidgetItem(str(l.capacity/4)))
-        table.setItem(i, 6, QTableWidgetItem(str(l.tractive_effort)))
-        table.setItem(i, 7, QTableWidgetItem(str(l.weight)))
-        if len(l.cargo_type) == 0:
-            table.setItem(i, 8, QTableWidgetItem(""))
-        else:
-            ic, _ = QtHPack(*[create_goods_icon(t) for t in l.cargo_type])
-            table.setCellWidget(i, 8, ic)
-        table.setItem(i, 9, QTableWidgetItem(str(l.fileid)))
 
     return table
 
@@ -410,7 +370,7 @@ qyear.returnPressed.connect(lambda: update_year(qyear.text()))
 qupdate = QPushButton("OK")
 
 selected_mods = set(["."])
-selected_vehicle = set([v.id for v in vehicles.rail])
+selected_rail_vehicle = set([v.fileid for v in vehicles.rail])
 selected_region = set(["eu"])
 selected_year = 0
 if args.goods is not None and args.goods in all_types:
@@ -486,7 +446,7 @@ layout.addWidget(topbar)
 topbar, layouttopbar = QtHPack(*gcb2)
 layout.addWidget(topbar)
 
-tablea = create_rail_table(vehicles.rail, train_main_widget)
+tablea = create_rail_table(vehicles.rail)
 update_year(args.year)
 layout.addWidget(tablea)
 
@@ -571,7 +531,7 @@ def do_plot():
     loc = []
     wag = []
     for v in lv:
-        if v.id in selected_vehicle:
+        if v.id in selected_rail_vehicle:
             if v.tractive_effort > 0:
                 loc.append(v)
             else:
