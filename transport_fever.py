@@ -89,16 +89,15 @@ def create_table(loc, parent = None):
         if l.id in selected_vehicle:
             cb.setCheckState(2)
         def on_change(st, l=l):
-            global selected_region
+            global selected_vehicle
             if st == 2:
-                print("add", l.name)
                 selected_vehicle.add(l.id)
             else:
-                print("remove", l.name)
                 selected_vehicle.discard(l.id)
+
         cb.stateChanged.connect(on_change)
         
-        table.setRowHeight(i, 100)
+        table.setRowHeight(i, 150)
             
         table.setCellWidget(i, 0, cb)
         tex = os.path.abspath(os.path.join(GAME_PATH, l.mods, "res/textures/ui/models_small", l.file[:-4]+"@2x.tga"))
