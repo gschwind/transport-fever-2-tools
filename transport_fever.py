@@ -190,9 +190,10 @@ def create_air_table(vehicles):
         ("max speed (km/h)",  "xspeed"),
         ("yearly cost",       "running_cost"),
         ("capacity",          "capacity"),
-        ("kN",                "max_thrust"),
-        ("Mass (t)",          "weight"),
-        ("max_thrust",        "max_thrust"),
+        ("N",                "max_thrust"),
+        ("Mass (kg)",          "weight"),
+        ("Time to full trust",        "time_to_full_thrust"),
+        ("max_take_off_weight",        "max_take_off_weight"),
         ("Cargo Type",        "cargo_type"),
         ("File",              "fileid"),
     ])
@@ -519,7 +520,7 @@ def rate(n0, loc, n1, wag, D):
     Vc = min(loc.top_speed, wag.top_speed)/3.6
     a = acceleration(n0, loc, n1, wag)
     da = (Vc*Vc)/(2*a)
-    t = np.where(D < da, np.sqrt(2*D/a), D/Vc + Vc/a)
+    t = np.where(D < da, np.sqrt(2*D/a), (2*a*D+Vc*Vc)/(2*a*Vc))
     T = (n0*loc.capacity+n1*wag.capacity)/(2*t)*12*60 # one game year is 12 mins
     return T
 
@@ -533,22 +534,22 @@ def rate(n0, loc, n1, wag, D):
 def standalone_vehicle_plot(vehicles):
     plt.close('all')
 
-    D = np.arange(1,100)*1000
+    D = np.arange(0,1000)
 
     plt.figure()
     plt.title("cost per rate, lower is better")
     for v in vehicles:
-        speed    = v.top_speed
-        accel    = v.accel
-        cost     = v.price/6
-        capacity = v.capacity
+        V    = v.top_speed
+        A    = v.accel
+        P    = v.price/6
+        C    = v.capacity
 
         # Distance to reach max speed
-        da = (speed**2)/accel/2
-        rate_cost = np.where(D<da,
-            np.sqrt(2*D/accel)*cost*v.top_speed/capacity,
-            (2*accel+speed**2)*cost/(2*accel*D+speed**2)/capacity)
-        plt.plot(D, rate_cost, label=v.name)
+        da = (V*V)/A/2
+        R = np.where(D<da,
+            np.sqrt(2*D)*2*P/(C*np.sqrt(A)),
+            (2*A*D+V*V)*P/(A*C*V))
+        plt.plot(D, R/(12*60), label=v.name)
 
     plt.legend()
     plt.show()
@@ -572,7 +573,7 @@ def do_plot():
             wag.append(v)
 
     D, N = np.mgrid[1:100,0:20]
-    D *= 1000
+    D *= 100
     names = []
     stats = []
     accel = []

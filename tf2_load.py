@@ -177,7 +177,7 @@ class water_vehicle(transport_vehicle):
         self.accel = 0.26
         
         # Guessed from game data
-        self.price = 83*self.capacity*self.top_speed*3600/1000
+        self.price = 83*(self.capacity+4)*self.top_speed*3600/1000
 
 
 class road_vehicle(transport_vehicle):
@@ -213,7 +213,7 @@ class air_vehicle(transport_vehicle):
         self.accel = self.max_thrust / self.weight
         
         # Guessed from data gathered, speed is converted to km/h
-        self.price = 130*self.capacity*self.top_speed*3600/1000
+        self.price = 130*(self.capacity+4)*self.top_speed*3600/1000
 
 
 class rail_vehicle(transport_vehicle):
